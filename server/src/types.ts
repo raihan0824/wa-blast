@@ -15,4 +15,4 @@ export interface BlastProgress {
   total: number;
 }
 
-export type WAStatus = 'disconnected' | 'qr_pending' | 'connected';
+export type WAStatus = 'disconnected' | 'qr_pending' | 'connected' | 'error';

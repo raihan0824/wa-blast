@@ -90,33 +90,27 @@ export async function initSession(io: SocketIOServer): Promise<void> {
         sock = null;
         initializing = false;
 
-        if (reason === DisconnectReason.loggedOut) {
-          await clearAuthState();
-          status = 'disconnected';
-          io.emit('status', status);
-        } else if (reason === 401 || reason === 405 || reason === DisconnectReason.connectionReplaced) {
+        const shouldClearAuth =
+          reason === DisconnectReason.loggedOut ||
+          reason === 401 ||
+          reason === 405 ||
+          reason === DisconnectReason.connectionReplaced;
+
+        if (shouldClearAuth) {
           console.log('[WA] Got', reason, '— clearing auth state and retrying fresh');
           await clearAuthState();
-          retryCount++;
-          if (retryCount <= MAX_RETRIES) {
-            await initSession(io);
-          } else {
-            console.log('[WA] Max retries reached, giving up');
-            status = 'disconnected';
-            retryCount = 0;
-            io.emit('status', status);
-          }
+        }
+
+        retryCount++;
+        if (retryCount <= MAX_RETRIES) {
+          console.log('[WA] Retrying... (attempt', retryCount + 1, ')');
+          await initSession(io);
         } else {
-          retryCount++;
-          if (retryCount <= MAX_RETRIES) {
-            console.log('[WA] Reconnecting...');
-            await initSession(io);
-          } else {
-            console.log('[WA] Max retries reached, giving up');
-            status = 'disconnected';
-            retryCount = 0;
-            io.emit('status', status);
-          }
+          console.log('[WA] Max retries reached, giving up');
+          status = 'error';
+          retryCount = 0;
+          io.emit('status', status);
+          io.emit('wa:error', `Connection failed after ${MAX_RETRIES} attempts (code: ${reason}). Try again.`);
         }
       }
     });
