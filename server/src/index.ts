@@ -20,6 +20,7 @@ import authRouter from './routes/auth.js';
 import uploadRouter from './routes/upload.js';
 import templateRouter from './routes/template.js';
 import { createBlastRouter } from './routes/blast.js';
+import historyRouter from './routes/history.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -39,6 +40,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/upload', requireAuth, uploadRouter);
 app.use('/api/template', requireAuth, templateRouter);
 app.use('/api/blast', requireAuth, createBlastRouter(io));
+app.use('/api/history', requireAuth, historyRouter);
 
 app.get('/api/status', requireAuth, (_req, res) => {
   res.json({ status: getStatus() });

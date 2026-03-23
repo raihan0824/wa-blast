@@ -22,6 +22,41 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    name TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS blast_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    template TEXT NOT NULL,
+    total INTEGER NOT NULL DEFAULT 0,
+    sent INTEGER NOT NULL DEFAULT 0,
+    failed INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'running',
+    started_at TEXT DEFAULT (datetime('now')),
+    completed_at TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS blast_recipients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    blast_id INTEGER NOT NULL REFERENCES blast_history(id),
+    number TEXT NOT NULL,
+    variables TEXT NOT NULL DEFAULT '{}',
+    rendered_message TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    error TEXT,
+    sent_at TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_blast_history_user ON blast_history(user_id);
+  CREATE INDEX IF NOT EXISTS idx_blast_recipients_blast ON blast_recipients(blast_id);
 `);
 
 console.log('[DB] SQLite initialized at', DB_PATH);
