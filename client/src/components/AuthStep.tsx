@@ -47,7 +47,6 @@ export function AuthStep({ socket, onNext }: AuthStepProps) {
 
   return (
     <div className="flex flex-col items-center gap-6">
-      <h2 className="text-2xl font-semibold text-gray-800">Connect WhatsApp</h2>
       <p className="text-gray-500">Scan the QR code with your WhatsApp to get started</p>
 
       <div className="w-72 h-72 border border-gray-200 rounded-xl flex items-center justify-center bg-white shadow-sm">

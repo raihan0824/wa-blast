@@ -38,8 +38,9 @@ COPY --from=build /app/server/dist server/dist
 # Copy built client
 COPY --from=build /app/client/dist client/dist
 
-# Auth state is stored here (mount as volume for persistence)
-VOLUME /app/auth_info
+# Data directory for SQLite database (mount as volume for persistence)
+RUN mkdir -p /app/data
+VOLUME /app/data
 
 ENV NODE_ENV=production
 ENV PORT=3001
