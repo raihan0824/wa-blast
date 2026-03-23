@@ -1,0 +1,13 @@
+services:
+  wa-blast:
+    build: .
+    ports:
+      - "3428:3428"
+    volumes:
+      - wa_auth:/app/auth_info
+    environment:
+      - PORT=3428
+    restart: unless-stopped
+
+volumes:
+  wa_auth:
