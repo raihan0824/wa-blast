@@ -9,6 +9,7 @@ import { UploadStep } from './components/UploadStep';
 import { TemplateStep } from './components/TemplateStep';
 import { PreviewStep } from './components/PreviewStep';
 import { BlastStep } from './components/BlastStep';
+import { HistoryPage } from './components/HistoryPage';
 import type { Contact } from './lib/api';
 
 const PAGE_TITLES: Record<Page, string> = {
@@ -17,6 +18,7 @@ const PAGE_TITLES: Record<Page, string> = {
   template: 'Message Template',
   preview: 'Preview Messages',
   send: 'Send Messages',
+  history: 'Blast History',
 };
 
 function Dashboard() {
@@ -24,6 +26,7 @@ function Dashboard() {
   const [page, setPage] = useState<Page>('connect');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [columns, setColumns] = useState<string[]>(['name']);
   const [template, setTemplate] = useState('');
 
   const handleLogout = () => {
@@ -52,8 +55,9 @@ function Dashboard() {
             )}
             {page === 'upload' && (
               <UploadStep
-                onNext={(c) => {
+                onNext={(c, cols) => {
                   setContacts(c);
+                  setColumns(cols);
                   setPage('template');
                 }}
                 onBack={() => setPage('connect')}
@@ -62,6 +66,7 @@ function Dashboard() {
             {page === 'template' && (
               <TemplateStep
                 contacts={contacts}
+                columns={columns}
                 onNext={(t) => {
                   setTemplate(t);
                   setPage('preview');
@@ -72,6 +77,7 @@ function Dashboard() {
             {page === 'preview' && (
               <PreviewStep
                 contacts={contacts}
+                columns={columns}
                 template={template}
                 onConfirm={() => setPage('send')}
                 onBack={() => setPage('template')}
@@ -84,10 +90,14 @@ function Dashboard() {
                 template={template}
                 onReset={() => {
                   setContacts([]);
+                  setColumns(['name']);
                   setTemplate('');
                   setPage('upload');
                 }}
               />
+            )}
+            {page === 'history' && (
+              <HistoryPage />
             )}
           </div>
 

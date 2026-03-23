@@ -3,11 +3,14 @@ import type { Server as SocketIOServer } from 'socket.io';
 import { getSocket, getStatus } from '../whatsapp/session.js';
 import { executeBlast } from '../whatsapp/sender.js';
 import type { Contact } from '../types.js';
+import type { AuthRequest } from '../middleware/auth.js';
+import db from '../db.js';
 
 export function createBlastRouter(io: SocketIOServer): Router {
   const router = Router();
 
   router.post('/', (req, res) => {
+    const { user } = req as AuthRequest;
     const { contacts, template } = req.body as {
       contacts: Contact[];
       template: string;
@@ -34,13 +37,32 @@ export function createBlastRouter(io: SocketIOServer): Router {
       return;
     }
 
+    // Create blast history record
+    const historyResult = db.prepare(
+      'INSERT INTO blast_history (user_id, template, total) VALUES (?, ?, ?)'
+    ).run(user!.id, template, contacts.length);
+    const blastId = Number(historyResult.lastInsertRowid);
+
+    // Insert all recipients
+    const insertRecipient = db.prepare(
+      'INSERT INTO blast_recipients (blast_id, number, variables) VALUES (?, ?, ?)'
+    );
+    const insertMany = db.transaction((items: Contact[]) => {
+      for (const c of items) {
+        const { number, ...variables } = c;
+        insertRecipient.run(blastId, number, JSON.stringify(variables));
+      }
+    });
+    insertMany(contacts);
+
     // Start blast asynchronously
-    executeBlast(sock, contacts, template, io).catch((err) => {
+    executeBlast(sock, contacts, template, io, blastId).catch((err) => {
       console.error('Blast execution error:', err);
+      db.prepare("UPDATE blast_history SET status = 'error', completed_at = datetime('now') WHERE id = ?").run(blastId);
       io.emit('blast:error', { number: '', error: 'Blast execution failed' });
     });
 
-    res.json({ status: 'started', totalMessages: contacts.length });
+    res.json({ status: 'started', totalMessages: contacts.length, blastId });
   });
 
   return router;

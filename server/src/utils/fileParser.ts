@@ -26,19 +26,34 @@ function validateNumber(num: string): boolean {
   return /^\d{10,15}$/.test(num);
 }
 
+function normalizeHeaderKey(header: string): string {
+  const lower = header.trim().toLowerCase();
+  if (NAME_ALIASES.includes(lower)) return 'name';
+  if (NUMBER_ALIASES.includes(lower)) return 'number';
+  return header.trim();
+}
+
 function parseRows(rows: Record<string, string>[], headers: string[]): UploadResult {
-  const nameCol = findColumn(headers, NAME_ALIASES);
   const numberCol = findColumn(headers, NUMBER_ALIASES);
 
-  if (!nameCol || !numberCol) {
-    const missing = [];
-    if (!nameCol) missing.push('name');
-    if (!numberCol) missing.push('number');
+  if (!numberCol) {
     return {
       contacts: [],
+      columns: [],
       totalRows: rows.length,
-      errors: [`Missing required column(s): ${missing.join(', ')}. Found columns: ${headers.join(', ')}`],
+      errors: [`Missing required column: number. Found columns: ${headers.join(', ')}`],
     };
+  }
+
+  // Build column list (all non-number headers, normalized)
+  const columns: string[] = [];
+  const headerMap: { original: string; key: string }[] = [];
+
+  for (const h of headers) {
+    const key = normalizeHeaderKey(h);
+    if (key === 'number') continue;
+    if (!columns.includes(key)) columns.push(key);
+    headerMap.push({ original: h, key });
   }
 
   const contacts: Contact[] = [];
@@ -46,11 +61,10 @@ function parseRows(rows: Record<string, string>[], headers: string[]): UploadRes
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const name = row[nameCol]?.trim();
     const rawNumber = row[numberCol]?.trim();
 
-    if (!name || !rawNumber) {
-      errors.push(`Row ${i + 2}: missing name or number`);
+    if (!rawNumber) {
+      errors.push(`Row ${i + 2}: missing number`);
       continue;
     }
 
@@ -60,10 +74,14 @@ function parseRows(rows: Record<string, string>[], headers: string[]): UploadRes
       continue;
     }
 
-    contacts.push({ name, number });
+    const contact: Contact = { number };
+    for (const { original, key } of headerMap) {
+      contact[key] = row[original]?.trim() || '';
+    }
+    contacts.push(contact);
   }
 
-  return { contacts, totalRows: rows.length, errors };
+  return { contacts, columns, totalRows: rows.length, errors };
 }
 
 export function parseCSV(buffer: Buffer): UploadResult {
@@ -82,7 +100,7 @@ export function parseExcel(buffer: Buffer): UploadResult {
   const data = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: '' });
 
   if (data.length === 0) {
-    return { contacts: [], totalRows: 0, errors: ['File is empty'] };
+    return { contacts: [], columns: [], totalRows: 0, errors: ['File is empty'] };
   }
 
   const headers = Object.keys(data[0]);
@@ -93,5 +111,5 @@ export function parseFile(buffer: Buffer, filename: string): UploadResult {
   const ext = filename.toLowerCase().split('.').pop();
   if (ext === 'csv') return parseCSV(buffer);
   if (ext === 'xlsx' || ext === 'xls') return parseExcel(buffer);
-  return { contacts: [], totalRows: 0, errors: [`Unsupported file type: .${ext}`] };
+  return { contacts: [], columns: [], totalRows: 0, errors: [`Unsupported file type: .${ext}`] };
 }

@@ -3,15 +3,17 @@ import { useDropzone } from 'react-dropzone';
 import { uploadFile, type Contact } from '../lib/api';
 
 interface UploadStepProps {
-  onNext: (contacts: Contact[]) => void;
+  onNext: (contacts: Contact[], columns: string[]) => void;
   onBack: () => void;
 }
 
 export function UploadStep({ onNext, onBack }: UploadStepProps) {
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [columns, setColumns] = useState<string[]>(['name']);
   const [errors, setErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [newColumnName, setNewColumnName] = useState('');
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: {
@@ -30,6 +32,9 @@ export function UploadStep({ onNext, onBack }: UploadStepProps) {
         const result = await uploadFile(file);
         setContacts(result.contacts);
         setErrors(result.errors);
+        if (result.columns.length > 0) {
+          setColumns(result.columns);
+        }
       } catch (err: unknown) {
         setErrors([err instanceof Error ? err.message : 'Upload failed']);
         setContacts([]);
@@ -39,16 +44,49 @@ export function UploadStep({ onNext, onBack }: UploadStepProps) {
     },
   });
 
+  const addColumn = () => {
+    const name = newColumnName.trim().toLowerCase();
+    if (!name || name === 'number' || columns.includes(name)) return;
+    setColumns([...columns, name]);
+    setContacts(contacts.map((c) => ({ ...c, [name]: '' })));
+    setNewColumnName('');
+  };
+
+  const removeColumn = (col: string) => {
+    setColumns(columns.filter((c) => c !== col));
+    setContacts(contacts.map((c) => {
+      const { [col]: _, ...rest } = c;
+      return rest as Contact;
+    }));
+  };
+
+  const addRow = () => {
+    const newContact: Contact = { number: '' };
+    for (const col of columns) {
+      newContact[col] = '';
+    }
+    setContacts([...contacts, newContact]);
+  };
+
+  const removeRow = (index: number) => {
+    setContacts(contacts.filter((_, i) => i !== index));
+  };
+
+  const updateCell = (index: number, key: string, value: string) => {
+    setContacts(contacts.map((c, i) => i === index ? { ...c, [key]: value } : c));
+  };
+
+  const validContacts = contacts.filter((c) => c.number.trim().length > 0);
+
   return (
     <div className="flex flex-col items-center gap-6">
-      <h2 className="text-2xl font-semibold text-gray-800">Upload Contacts</h2>
       <p className="text-gray-500">
-        Upload a CSV or Excel file with <strong>name</strong> and <strong>number</strong> columns
+        Upload a CSV/Excel file with a <strong>number</strong> column, or add contacts manually below.
       </p>
 
       <div
         {...getRootProps()}
-        className={`w-full max-w-lg border-2 border-dashed rounded-xl p-10 cursor-pointer transition-colors ${
+        className={`w-full max-w-lg border-2 border-dashed rounded-xl p-8 cursor-pointer transition-colors ${
           isDragActive
             ? 'border-green-400 bg-green-50'
             : 'border-gray-300 hover:border-gray-400 bg-white'
@@ -56,7 +94,7 @@ export function UploadStep({ onNext, onBack }: UploadStepProps) {
       >
         <input {...getInputProps()} />
         <div className="text-center">
-          <div className="text-4xl mb-3">📁</div>
+          <div className="text-3xl mb-2">📁</div>
           {loading ? (
             <p className="text-gray-500">Processing file...</p>
           ) : fileName ? (
@@ -71,7 +109,7 @@ export function UploadStep({ onNext, onBack }: UploadStepProps) {
       </div>
 
       {errors.length > 0 && (
-        <div className="w-full max-w-lg bg-amber-50 border border-amber-200 rounded-lg p-4 text-left">
+        <div className="w-full max-w-2xl bg-amber-50 border border-amber-200 rounded-lg p-4 text-left">
           <p className="text-amber-700 font-medium mb-1">Warnings:</p>
           <ul className="text-amber-600 text-sm list-disc list-inside">
             {errors.slice(0, 10).map((e, i) => (
@@ -84,38 +122,118 @@ export function UploadStep({ onNext, onBack }: UploadStepProps) {
         </div>
       )}
 
-      {contacts.length > 0 && (
-        <div className="w-full max-w-lg">
-          <p className="text-green-600 font-medium mb-3">
-            {contacts.length} valid contact{contacts.length !== 1 ? 's' : ''} found
-          </p>
-          <div className="border rounded-lg overflow-hidden">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-2 text-gray-600">#</th>
-                  <th className="px-4 py-2 text-gray-600">Name</th>
-                  <th className="px-4 py-2 text-gray-600">Number</th>
-                </tr>
-              </thead>
-              <tbody>
-                {contacts.slice(0, 5).map((c, i) => (
-                  <tr key={i} className="border-t">
-                    <td className="px-4 py-2 text-gray-400">{i + 1}</td>
-                    <td className="px-4 py-2">{c.name}</td>
-                    <td className="px-4 py-2 font-mono text-gray-600">{c.number}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {contacts.length > 5 && (
-              <p className="text-gray-400 text-sm p-3 border-t">
-                ...and {contacts.length - 5} more
-              </p>
-            )}
+      {/* Column manager */}
+      <div className="w-full max-w-2xl">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-sm font-medium text-gray-700">Columns</p>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newColumnName}
+              onChange={(e) => setNewColumnName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addColumn()}
+              placeholder="New column..."
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+            <button
+              onClick={addColumn}
+              disabled={!newColumnName.trim() || newColumnName.trim().toLowerCase() === 'number' || columns.includes(newColumnName.trim().toLowerCase())}
+              className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg font-medium hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              + Add
+            </button>
           </div>
         </div>
-      )}
+        <div className="flex flex-wrap gap-2 mb-4">
+          <span className="px-3 py-1 bg-gray-100 text-gray-500 text-xs rounded-full font-medium">number (required)</span>
+          {columns.map((col) => (
+            <span key={col} className="px-3 py-1 bg-green-50 text-green-700 text-xs rounded-full font-medium flex items-center gap-1.5">
+              {col}
+              <button
+                onClick={() => removeColumn(col)}
+                className="text-green-400 hover:text-red-500 transition-colors"
+              >
+                &times;
+              </button>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Contact table */}
+      <div className="w-full max-w-2xl">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-sm font-medium text-gray-700">
+            {validContacts.length} valid contact{validContacts.length !== 1 ? 's' : ''}
+            {contacts.length !== validContacts.length && ` (${contacts.length} total)`}
+          </p>
+          <button
+            onClick={addRow}
+            className="px-3 py-1.5 border border-green-300 text-green-600 text-sm rounded-lg font-medium hover:bg-green-50 transition-colors"
+          >
+            + Add Row
+          </button>
+        </div>
+
+        {contacts.length > 0 && (
+          <div className="border rounded-lg overflow-hidden">
+            <div className="max-h-96 overflow-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 text-gray-600 w-10">#</th>
+                    <th className="px-3 py-2 text-gray-600">Number</th>
+                    {columns.map((col) => (
+                      <th key={col} className="px-3 py-2 text-gray-600 capitalize">{col}</th>
+                    ))}
+                    <th className="px-3 py-2 text-gray-600 w-10"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contacts.map((c, i) => (
+                    <tr key={i} className="border-t">
+                      <td className="px-3 py-1.5 text-gray-400">{i + 1}</td>
+                      <td className="px-3 py-1.5">
+                        <input
+                          type="text"
+                          value={c.number}
+                          onChange={(e) => updateCell(i, 'number', e.target.value)}
+                          className="w-full border border-gray-200 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-green-500"
+                          placeholder="628..."
+                        />
+                      </td>
+                      {columns.map((col) => (
+                        <td key={col} className="px-3 py-1.5">
+                          <input
+                            type="text"
+                            value={c[col] || ''}
+                            onChange={(e) => updateCell(i, col, e.target.value)}
+                            className="w-full border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+                          />
+                        </td>
+                      ))}
+                      <td className="px-3 py-1.5">
+                        <button
+                          onClick={() => removeRow(i)}
+                          className="text-gray-300 hover:text-red-500 transition-colors"
+                        >
+                          &times;
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {contacts.length === 0 && (
+          <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center text-gray-400">
+            No contacts yet. Upload a file or add rows manually.
+          </div>
+        )}
+      </div>
 
       <div className="flex gap-3">
         <button
@@ -125,8 +243,8 @@ export function UploadStep({ onNext, onBack }: UploadStepProps) {
           ← Back
         </button>
         <button
-          onClick={() => onNext(contacts)}
-          disabled={contacts.length === 0}
+          onClick={() => onNext(validContacts, columns)}
+          disabled={validContacts.length === 0}
           className="px-6 py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Next →

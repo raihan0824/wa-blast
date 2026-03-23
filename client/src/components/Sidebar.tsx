@@ -9,7 +9,7 @@ const BLAST_PAGES = [
   { id: 'send', label: 'Send', icon: 'M12 19l9 2-9-18-9 18 9-2zm0 0v-8' },
 ];
 
-export type Page = 'connect' | 'upload' | 'template' | 'preview' | 'send';
+export type Page = 'connect' | 'upload' | 'template' | 'preview' | 'send' | 'history';
 
 interface SidebarProps {
   currentPage: Page;
@@ -87,6 +87,16 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
               </button>
             );
           })}
+
+          <button
+            onClick={() => onNavigate('history')}
+            className={`p-2 rounded-lg transition-colors ${currentPage === 'history' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'}`}
+            title="History"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
         </div>
 
         <button
@@ -187,6 +197,23 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
           </ul>
         )}
       </nav>
+
+      {/* History — accessible without WA connection */}
+      <div className="px-3 mb-4">
+        <button
+          onClick={() => onNavigate('history')}
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+            currentPage === 'history'
+              ? 'bg-gray-900 text-white'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>History</span>
+        </button>
+      </div>
 
       {/* Settings */}
       <div className="px-3 mb-2">
