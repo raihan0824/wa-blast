@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react';
 import { getUser } from '../lib/auth';
 
 const BLAST_PAGES = [
-  { id: 'upload', label: 'Upload Contacts', icon: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12' },
-  { id: 'template', label: 'Template', icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z' },
-  { id: 'preview', label: 'Preview', icon: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z' },
-  { id: 'send', label: 'Send', icon: 'M12 19l9 2-9-18-9 18 9-2zm0 0v-8' },
+  { id: 'upload', label: 'Upload Contacts', icon: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12', requiresWA: true },
+  { id: 'template', label: 'Template', icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', requiresWA: true },
+  { id: 'preview', label: 'Preview', icon: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z', requiresWA: true },
+  { id: 'send', label: 'Send', icon: 'M12 19l9 2-9-18-9 18 9-2zm0 0v-8', requiresWA: true },
+  { id: 'history', label: 'History', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', requiresWA: false },
 ];
 
 export type Page = 'connect' | 'upload' | 'template' | 'preview' | 'send' | 'history';
@@ -67,7 +68,7 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
           </button>
 
           {BLAST_PAGES.map((p) => {
-            const disabled = !isConnected;
+            const disabled = p.requiresWA && !isConnected;
             const isActive = currentPage === p.id;
             return (
               <button
@@ -87,16 +88,6 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
               </button>
             );
           })}
-
-          <button
-            onClick={() => onNavigate('history')}
-            className={`p-2 rounded-lg transition-colors ${currentPage === 'history' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'}`}
-            title="History"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </button>
         </div>
 
         <button
@@ -170,7 +161,7 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
         {blastOpen && (
           <ul className="space-y-1 mt-1">
             {BLAST_PAGES.map((p) => {
-              const disabled = !isConnected;
+              const disabled = p.requiresWA && !isConnected;
               const isActive = currentPage === p.id;
 
               return (
@@ -197,23 +188,6 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
           </ul>
         )}
       </nav>
-
-      {/* History — accessible without WA connection */}
-      <div className="px-3 mb-4">
-        <button
-          onClick={() => onNavigate('history')}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-            currentPage === 'history'
-              ? 'bg-gray-900 text-white'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span>History</span>
-        </button>
-      </div>
 
       {/* Settings */}
       <div className="px-3 mb-2">
