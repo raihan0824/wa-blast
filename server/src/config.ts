@@ -1,5 +1,8 @@
 export const SERVER_PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;
 
+export const JWT_SECRET = process.env.JWT_SECRET || 'wa-blast-dev-secret-change-in-prod';
+export const JWT_EXPIRES_IN = '7d';
+
 export const UPLOAD_MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
 export const DEFAULT_COUNTRY_CODE = '62'; // Indonesia

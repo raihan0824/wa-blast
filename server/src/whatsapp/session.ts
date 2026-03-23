@@ -1,15 +1,13 @@
 import {
   makeWASocket,
-  useMultiFileAuthState,
   DisconnectReason,
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
-import { rm } from 'fs/promises';
 import QRCode from 'qrcode';
 import type { Server as SocketIOServer } from 'socket.io';
 import type { WAStatus } from '../types.js';
+import { useSQLiteAuthState, clearSQLiteAuthState } from './authState.js';
 
-const AUTH_DIR = './auth_info';
 const MAX_RETRIES = 3;
 const WA_VERSION: [number, number, number] = [2, 3000, 1034195523];
 
@@ -25,15 +23,6 @@ export function getSocket(): typeof sock {
 
 export function getStatus(): WAStatus {
   return status;
-}
-
-async function clearAuthState(): Promise<void> {
-  try {
-    await rm(AUTH_DIR, { recursive: true, force: true });
-    console.log('[WA] Cleared auth state');
-  } catch {
-    // ignore
-  }
 }
 
 export async function initSession(io: SocketIOServer): Promise<void> {
@@ -54,7 +43,7 @@ export async function initSession(io: SocketIOServer): Promise<void> {
   console.log('[WA] Initializing session... (attempt', retryCount + 1, ')');
 
   try {
-    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+    const { state, saveCreds } = useSQLiteAuthState();
 
     sock = makeWASocket({
       auth: state,
@@ -98,7 +87,7 @@ export async function initSession(io: SocketIOServer): Promise<void> {
 
         if (shouldClearAuth) {
           console.log('[WA] Got', reason, '— clearing auth state and retrying fresh');
-          await clearAuthState();
+          clearSQLiteAuthState();
         }
 
         retryCount++;
@@ -124,12 +113,18 @@ export async function initSession(io: SocketIOServer): Promise<void> {
   }
 }
 
-export async function logout(io: SocketIOServer): Promise<void> {
+export async function disconnect(io: SocketIOServer): Promise<void> {
   if (sock) {
-    await sock.logout();
+    sock.ev.removeAllListeners('connection.update');
+    sock.ev.removeAllListeners('creds.update');
+    try {
+      sock.end(undefined);
+    } catch {
+      // ignore — background tasks may throw on closed connection
+    }
     sock = null;
   }
-  await clearAuthState();
+  clearSQLiteAuthState();
   initializing = false;
   retryCount = 0;
   status = 'disconnected';

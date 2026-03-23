@@ -1,6 +1,9 @@
 import { useState } from 'react';
+import { getToken, clearAuth } from './lib/auth';
+import { LoginPage } from './components/LoginPage';
+import { Sidebar } from './components/Sidebar';
+import type { Page } from './components/Sidebar';
 import { useSocket } from './hooks/useSocket';
-import { Stepper } from './components/Stepper';
 import { AuthStep } from './components/AuthStep';
 import { UploadStep } from './components/UploadStep';
 import { TemplateStep } from './components/TemplateStep';
@@ -8,75 +11,103 @@ import { PreviewStep } from './components/PreviewStep';
 import { BlastStep } from './components/BlastStep';
 import type { Contact } from './lib/api';
 
-function App() {
+const PAGE_TITLES: Record<Page, string> = {
+  connect: 'Connect WhatsApp',
+  upload: 'Upload Contacts',
+  template: 'Message Template',
+  preview: 'Preview Messages',
+  send: 'Send Messages',
+};
+
+function Dashboard() {
   const socket = useSocket();
-  const [step, setStep] = useState(1);
+  const [page, setPage] = useState<Page>('connect');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [template, setTemplate] = useState('');
 
+  const handleLogout = () => {
+    clearAuth();
+    window.location.reload();
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold text-center text-gray-800 mb-2">
-          WA Blast
-        </h1>
-        <p className="text-center text-gray-500 mb-8">
-          Send personalized WhatsApp messages at scale
-        </p>
+    <div className="flex min-h-screen bg-gray-50">
+      <Sidebar
+        currentPage={page}
+        onNavigate={setPage}
+        onLogout={handleLogout}
+        onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        collapsed={sidebarCollapsed}
+        socket={socket}
+      />
 
-        <Stepper currentStep={step} />
+      <main className="flex-1 p-8">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">{PAGE_TITLES[page]}</h2>
 
-        <div className="bg-white rounded-xl shadow-sm border p-8">
-          {step === 1 && (
-            <AuthStep socket={socket} onNext={() => setStep(2)} />
-          )}
-          {step === 2 && (
-            <UploadStep
-              onNext={(c) => {
-                setContacts(c);
-                setStep(3);
-              }}
-              onBack={() => setStep(1)}
-            />
-          )}
-          {step === 3 && (
-            <TemplateStep
-              contacts={contacts}
-              onNext={(t) => {
-                setTemplate(t);
-                setStep(4);
-              }}
-              onBack={() => setStep(2)}
-            />
-          )}
-          {step === 4 && (
-            <PreviewStep
-              contacts={contacts}
-              template={template}
-              onConfirm={() => setStep(5)}
-              onBack={() => setStep(3)}
-            />
-          )}
-          {step === 5 && (
-            <BlastStep
-              socket={socket}
-              contacts={contacts}
-              template={template}
-              onReset={() => {
-                setContacts([]);
-                setTemplate('');
-                setStep(2);
-              }}
-            />
-          )}
+          <div className="bg-white rounded-xl shadow-sm border p-8">
+            {page === 'connect' && (
+              <AuthStep socket={socket} onNext={() => setPage('upload')} />
+            )}
+            {page === 'upload' && (
+              <UploadStep
+                onNext={(c) => {
+                  setContacts(c);
+                  setPage('template');
+                }}
+                onBack={() => setPage('connect')}
+              />
+            )}
+            {page === 'template' && (
+              <TemplateStep
+                contacts={contacts}
+                onNext={(t) => {
+                  setTemplate(t);
+                  setPage('preview');
+                }}
+                onBack={() => setPage('upload')}
+              />
+            )}
+            {page === 'preview' && (
+              <PreviewStep
+                contacts={contacts}
+                template={template}
+                onConfirm={() => setPage('send')}
+                onBack={() => setPage('template')}
+              />
+            )}
+            {page === 'send' && (
+              <BlastStep
+                socket={socket}
+                contacts={contacts}
+                template={template}
+                onReset={() => {
+                  setContacts([]);
+                  setTemplate('');
+                  setPage('upload');
+                }}
+              />
+            )}
+          </div>
+
+          <footer className="text-center text-gray-400 text-sm mt-8 pb-4">
+            Created by Raihan Afiandi
+          </footer>
         </div>
-
-        <footer className="text-center text-gray-400 text-sm mt-8 pb-4">
-          Created by Raihan Afiandi
-        </footer>
-      </div>
+      </main>
     </div>
   );
+}
+
+function App() {
+  const [authed, setAuthed] = useState(!!getToken());
+
+  if (!authed) {
+    return <LoginPage onAuth={() => setAuthed(true)} />;
+  }
+
+  return <Dashboard />;
 }
 
 export default App;

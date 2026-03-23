@@ -5,4 +5,7 @@ server/uploads/
 .env
 *.log
 *.csv
+*.db
+*.db-wal
+*.db-shm
 .DS_Store

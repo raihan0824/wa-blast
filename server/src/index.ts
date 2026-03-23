@@ -5,7 +5,18 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { SERVER_PORT } from './config.js';
-import { initSession, logout, getStatus } from './whatsapp/session.js';
+import './db.js';
+import { initSession, disconnect, getStatus } from './whatsapp/session.js';
+
+// Prevent Baileys background tasks from crashing the process
+process.on('uncaughtException', (err) => {
+  console.error('[Process] Uncaught exception:', err.message);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('[Process] Unhandled rejection:', err);
+});
+import { requireAuth, verifySocketToken } from './middleware/auth.js';
+import authRouter from './routes/auth.js';
 import uploadRouter from './routes/upload.js';
 import templateRouter from './routes/template.js';
 import { createBlastRouter } from './routes/blast.js';
@@ -21,12 +32,15 @@ const io = new Server(httpServer, {
 app.use(cors());
 app.use(express.json());
 
-// REST routes
-app.use('/api/upload', uploadRouter);
-app.use('/api/template', templateRouter);
-app.use('/api/blast', createBlastRouter(io));
+// Public routes
+app.use('/api/auth', authRouter);
 
-app.get('/api/status', (_req, res) => {
+// Protected routes
+app.use('/api/upload', requireAuth, uploadRouter);
+app.use('/api/template', requireAuth, templateRouter);
+app.use('/api/blast', requireAuth, createBlastRouter(io));
+
+app.get('/api/status', requireAuth, (_req, res) => {
   res.json({ status: getStatus() });
 });
 
@@ -37,11 +51,24 @@ app.get('*', (_req, res) => {
   res.sendFile(path.join(clientDist, 'index.html'));
 });
 
-// Socket.IO
+// Socket.IO with auth
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token as string | undefined;
+  if (!token) {
+    next(new Error('Authentication required'));
+    return;
+  }
+  const user = verifySocketToken(token);
+  if (!user) {
+    next(new Error('Invalid token'));
+    return;
+  }
+  (socket as unknown as { user: typeof user }).user = user;
+  next();
+});
+
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
-
-  // Send current status on connect
   socket.emit('status', getStatus());
 
   socket.on('connect-wa', async () => {
@@ -55,7 +82,7 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect-wa', async () => {
     try {
-      await logout(io);
+      await disconnect(io);
     } catch (err) {
       console.error('Failed to logout:', err);
     }

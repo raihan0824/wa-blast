@@ -4,10 +4,12 @@ services:
     ports:
       - "8543:8543"
     volumes:
-      - wa_auth:/app/auth_info
+      - wa_data:/app/data
     environment:
       - PORT=8543
+      - DB_PATH=/app/data/wa-blast.db
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
     restart: unless-stopped
 
 volumes:
-  wa_auth:
+  wa_data:
