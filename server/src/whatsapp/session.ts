@@ -94,7 +94,7 @@ export async function initSession(io: SocketIOServer): Promise<void> {
           await clearAuthState();
           status = 'disconnected';
           io.emit('status', status);
-        } else if (reason === 405 || reason === DisconnectReason.connectionReplaced) {
+        } else if (reason === 401 || reason === 405 || reason === DisconnectReason.connectionReplaced) {
           console.log('[WA] Got', reason, '— clearing auth state and retrying fresh');
           await clearAuthState();
           retryCount++;
