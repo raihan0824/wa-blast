@@ -24,11 +24,23 @@ interface SidebarProps {
 export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collapsed, socket }: SidebarProps) {
   const [waStatus, setWaStatus] = useState<string>('disconnected');
   const [blastOpen, setBlastOpen] = useState(true);
+  const [contactsSynced, setContactsSynced] = useState(0);
+  const [contactsBuffered, setContactsBuffered] = useState(0);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     const onStatus = (s: string) => setWaStatus(s);
+    const onContactsCount = (data: { synced: number; buffered: number }) => {
+      setContactsSynced(data.synced);
+      setContactsBuffered(data.buffered);
+      setSyncing(false);
+    };
     socket.on('status', onStatus);
-    return () => { socket.off('status', onStatus); };
+    socket.on('contacts:count', onContactsCount);
+    return () => {
+      socket.off('status', onStatus);
+      socket.off('contacts:count', onContactsCount);
+    };
   }, [socket]);
 
   const isConnected = waStatus === 'connected';
@@ -61,7 +73,7 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
         <div className="flex-1 flex flex-col items-center gap-2">
           <button
             onClick={() => onNavigate('connect')}
-            className={`p-2 rounded-lg transition-colors ${currentPage === 'connect' ? 'bg-gray-900 text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'}`}
+            className={`p-2 rounded-lg transition-colors ${currentPage === 'connect' ? 'bg-green-50 text-green-700' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'}`}
             title="Connect"
           >
             <span className={`block w-2 h-2 rounded-full ${statusColor}`} />
@@ -76,7 +88,7 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
                 onClick={() => !disabled && onNavigate(p.id as Page)}
                 disabled={disabled}
                 className={`p-2 rounded-lg transition-colors ${
-                  isActive ? 'bg-gray-900 text-white' :
+                  isActive ? 'bg-green-50 text-green-700' :
                   disabled ? 'text-gray-300 cursor-not-allowed' :
                   'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
                 }`}
@@ -123,24 +135,46 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
       </div>
 
       {/* WA Status */}
-      <button
-        onClick={() => onNavigate('connect')}
-        className={`mx-3 mt-4 px-4 py-3 rounded-lg border text-left transition-colors ${
-          currentPage === 'connect'
-            ? 'bg-gray-900 border-gray-900'
-            : 'bg-gray-50 border-gray-100 hover:bg-gray-100'
-        }`}
-      >
-        <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${statusColor}`} />
-          <span className={`text-xs font-medium ${currentPage === 'connect' ? 'text-white' : 'text-gray-600'}`}>
-            WhatsApp
-          </span>
-        </div>
-        <p className={`text-xs mt-1 ml-4 ${currentPage === 'connect' ? 'text-gray-400' : 'text-gray-400'}`}>
-          {statusLabel}
-        </p>
-      </button>
+      <div className={`mx-3 mt-4 rounded-lg border ${
+        currentPage === 'connect'
+          ? 'bg-green-50 border-green-200'
+          : 'bg-gray-50 border-gray-100'
+      }`}>
+        <button
+          onClick={() => onNavigate('connect')}
+          className={`w-full px-4 py-3 text-left transition-colors rounded-lg ${
+            currentPage !== 'connect' ? 'hover:bg-gray-100' : ''
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${statusColor}`} />
+            <span className={`text-xs font-medium ${currentPage === 'connect' ? 'text-green-800' : 'text-gray-600'}`}>
+              WhatsApp
+            </span>
+          </div>
+          <p className={`text-xs mt-1 ml-4 ${currentPage === 'connect' ? 'text-green-600' : 'text-gray-400'}`}>
+            {statusLabel}
+            {isConnected && contactsSynced > 0 && ` · ${contactsSynced.toLocaleString()} contacts`}
+          </p>
+        </button>
+        {isConnected && (
+          <div className="px-4 pb-3">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setSyncing(true);
+                socket.emit('sync-contacts');
+              }}
+              disabled={syncing || contactsBuffered === 0}
+              className="w-full text-xs py-1.5 rounded-md font-medium transition-colors bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {syncing ? 'Syncing...' : contactsBuffered > 0
+                ? `Sync ${contactsBuffered.toLocaleString()} contacts`
+                : contactsSynced > 0 ? 'Contacts synced' : 'No contacts available'}
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Navigation */}
       <nav className="flex-1 px-3 mt-6">
@@ -171,7 +205,7 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
                     disabled={disabled}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                       isActive
-                        ? 'bg-gray-900 text-white'
+                        ? 'bg-green-50 text-green-800'
                         : disabled
                           ? 'text-gray-300 cursor-not-allowed'
                           : 'text-gray-600 hover:bg-gray-100'
@@ -195,7 +229,7 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
         <button
           onClick={() => onNavigate('connect')}
           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-            currentPage === 'connect' ? 'text-gray-900 bg-gray-100' : 'text-gray-600 hover:bg-gray-100'
+            currentPage === 'connect' ? 'bg-green-50 text-green-800' : 'text-gray-600 hover:bg-gray-100'
           }`}
         >
           <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

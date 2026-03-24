@@ -6,7 +6,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { SERVER_PORT } from './config.js';
 import './db.js';
-import { initSession, disconnect, getStatus } from './whatsapp/session.js';
+import { initSession, disconnect, getStatus, syncContacts } from './whatsapp/session.js';
+import { setIO, flushBufferToStore, getContactCount, getBufferCount } from './whatsapp/contactStore.js';
 
 // Prevent Baileys background tasks from crashing the process
 process.on('uncaughtException', (err) => {
@@ -21,6 +22,7 @@ import uploadRouter from './routes/upload.js';
 import templateRouter from './routes/template.js';
 import { createBlastRouter } from './routes/blast.js';
 import historyRouter from './routes/history.js';
+import waContactsRouter from './routes/waContacts.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -29,6 +31,8 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: '*' },
 });
+
+setIO(io);
 
 app.use(cors());
 app.use(express.json());
@@ -41,6 +45,7 @@ app.use('/api/upload', requireAuth, uploadRouter);
 app.use('/api/template', requireAuth, templateRouter);
 app.use('/api/blast', requireAuth, createBlastRouter(io));
 app.use('/api/history', requireAuth, historyRouter);
+app.use('/api/wa-contacts', requireAuth, waContactsRouter);
 
 app.get('/api/status', requireAuth, (_req, res) => {
   res.json({ status: getStatus() });
@@ -72,6 +77,20 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
   socket.emit('status', getStatus());
+  socket.emit('contacts:count', { synced: getContactCount(), buffered: getBufferCount() });
+
+  socket.on('get-contacts-count', () => {
+    socket.emit('contacts:count', { synced: getContactCount(), buffered: getBufferCount() });
+  });
+
+  socket.on('sync-contacts', async () => {
+    try {
+      await syncContacts();
+    } catch {
+      // App state may already be synced
+    }
+    flushBufferToStore();
+  });
 
   socket.on('connect-wa', async () => {
     try {
