@@ -168,12 +168,39 @@ export function UploadStep({ onNext, onBack }: UploadStepProps) {
             {validContacts.length} valid contact{validContacts.length !== 1 ? 's' : ''}
             {contacts.length !== validContacts.length && ` (${contacts.length} total)`}
           </p>
-          <button
-            onClick={addRow}
-            className="px-3 py-1.5 border border-green-300 text-green-600 text-sm rounded-lg font-medium hover:bg-green-50 transition-colors"
-          >
-            + Add Row
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const allCols = ['number', ...columns];
+                const header = allCols.join(',');
+                const rows = contacts.map((c) =>
+                  allCols.map((col) => {
+                    const val = (col === 'number' ? c.number : c[col]) || '';
+                    return val.includes(',') || val.includes('"') || val.includes('\n')
+                      ? `"${val.replace(/"/g, '""')}"` : val;
+                  }).join(',')
+                );
+                const csv = [header, ...rows].join('\n');
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'contacts.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              disabled={contacts.length === 0}
+              className="px-3 py-1.5 border border-gray-300 text-gray-600 text-sm rounded-lg font-medium hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Export CSV
+            </button>
+            <button
+              onClick={addRow}
+              className="px-3 py-1.5 border border-green-300 text-green-600 text-sm rounded-lg font-medium hover:bg-green-50 transition-colors"
+            >
+              + Add Row
+            </button>
+          </div>
         </div>
 
         {contacts.length > 0 && (
