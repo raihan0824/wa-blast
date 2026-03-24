@@ -7,7 +7,7 @@ import QRCode from 'qrcode';
 import type { Server as SocketIOServer } from 'socket.io';
 import type { WAStatus } from '../types.js';
 import { useSQLiteAuthState, clearSQLiteAuthState } from './authState.js';
-import { upsertContacts, clearContacts } from './contactStore.js';
+import { bufferContacts, clearContacts } from './contactStore.js';
 
 const MAX_RETRIES = 3;
 const WA_VERSION: [number, number, number] = [2, 3000, 1034195523];
@@ -26,6 +26,18 @@ export function getStatus(): WAStatus {
   return status;
 }
 
+/** Force Baileys to re-sync app state, which triggers contacts.upsert with saved names */
+export async function syncContacts(): Promise<void> {
+  if (!sock) throw new Error('WhatsApp not connected');
+  await sock.resyncAppState([
+    'critical_block',
+    'critical_unblock_low',
+    'regular_high',
+    'regular_low',
+    'regular',
+  ], false);
+}
+
 export async function initSession(io: SocketIOServer): Promise<void> {
   if (initializing) {
     console.log('[WA] Already initializing, skipping');
@@ -36,6 +48,7 @@ export async function initSession(io: SocketIOServer): Promise<void> {
     console.log('[WA] Closing existing socket before reinit');
     sock.ev.removeAllListeners('connection.update');
     sock.ev.removeAllListeners('creds.update');
+    sock.ev.removeAllListeners('messaging-history.set');
     sock.ev.removeAllListeners('contacts.upsert');
     sock.ev.removeAllListeners('contacts.update');
     sock.end(undefined);
@@ -51,6 +64,7 @@ export async function initSession(io: SocketIOServer): Promise<void> {
     sock = makeWASocket({
       auth: state,
       version: WA_VERSION,
+      syncFullHistory: true,
     });
 
     const currentSock = sock;
@@ -109,14 +123,19 @@ export async function initSession(io: SocketIOServer): Promise<void> {
 
     currentSock.ev.on('creds.update', saveCreds);
 
+    // Initial contact sync comes via messaging-history.set in Baileys v6
+    currentSock.ev.on('messaging-history.set', ({ contacts: historyContacts }) => {
+      if (historyContacts && historyContacts.length > 0) {
+        bufferContacts(historyContacts as unknown as Record<string, unknown>[]);
+      }
+    });
+
     currentSock.ev.on('contacts.upsert', (contacts) => {
-      upsertContacts(contacts as { id: string; name?: string; notify?: string }[]);
-      console.log('[WA] Contacts upserted:', contacts.length);
+      bufferContacts(contacts as unknown as Record<string, unknown>[]);
     });
 
     currentSock.ev.on('contacts.update', (contacts) => {
-      upsertContacts(contacts as { id: string; name?: string; notify?: string }[]);
-      console.log('[WA] Contacts updated:', contacts.length);
+      bufferContacts(contacts as unknown as Record<string, unknown>[]);
     });
   } catch (err) {
     console.error('[WA] Init failed:', err);
@@ -130,6 +149,7 @@ export async function disconnect(io: SocketIOServer): Promise<void> {
   if (sock) {
     sock.ev.removeAllListeners('connection.update');
     sock.ev.removeAllListeners('creds.update');
+    sock.ev.removeAllListeners('messaging-history.set');
     sock.ev.removeAllListeners('contacts.upsert');
     sock.ev.removeAllListeners('contacts.update');
     try {

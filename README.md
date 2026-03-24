@@ -8,6 +8,8 @@ WhatsApp message blaster with web UI. Send personalized messages to contacts fro
 - User registration & login (JWT + SQLite)
 - CSV/Excel upload with automatic column detection
 - Manual contact editor (add/edit/delete rows & custom columns)
+- WhatsApp contact search — autocomplete number fields with synced WA contacts
+- Manual contact sync with buffered count display
 - Dynamic template variables — any CSV column becomes a `{variable}` placeholder
 - Saved templates (per-user, reusable across blasts)
 - Preview all messages before sending
@@ -51,8 +53,8 @@ Opens at http://localhost:8543. Set `JWT_SECRET` in your environment for product
 ## Usage
 
 1. **Register/Login** — Create an account or log in
-2. **Connect** — Scan the QR code with your WhatsApp
-3. **Upload** — Drop a CSV/Excel file or add contacts manually
+2. **Connect** — Scan the QR code with your WhatsApp, then sync contacts
+3. **Upload** — Drop a CSV/Excel file or add contacts manually (with WA contact autocomplete)
 4. **Template** — Write your message using `{name}`, `{company}`, or any column as placeholder. Save templates for reuse.
 5. **Preview** — Review all personalized messages
 6. **Blast** — Confirm and send

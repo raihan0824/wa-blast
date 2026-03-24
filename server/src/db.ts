@@ -57,6 +57,15 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_blast_history_user ON blast_history(user_id);
   CREATE INDEX IF NOT EXISTS idx_blast_recipients_blast ON blast_recipients(blast_id);
+
+  CREATE TABLE IF NOT EXISTS wa_contacts (
+    jid TEXT PRIMARY KEY,
+    number TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT '',
+    synced INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_wa_contacts_synced ON wa_contacts(synced);
 `);
 
 console.log('[DB] SQLite initialized at', DB_PATH);

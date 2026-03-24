@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { searchWAContacts, type WAContact } from '../lib/api';
 
@@ -9,7 +9,8 @@ interface ContactAutocompleteProps {
 }
 
 export function ContactAutocomplete({ value, onChange, placeholder = 'Search name or type 628...' }: ContactAutocompleteProps) {
-  const [displayValue, setDisplayValue] = useState(value);
+  const [searching, setSearching] = useState(false);
+  const [searchText, setSearchText] = useState('');
   const [results, setResults] = useState<WAContact[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -18,11 +19,6 @@ export function ContactAutocomplete({ value, onChange, placeholder = 'Search nam
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
-
-  // Sync external value changes
-  useEffect(() => {
-    setDisplayValue(value);
-  }, [value]);
 
   const updateDropdownPos = useCallback(() => {
     if (inputRef.current) {
@@ -35,21 +31,33 @@ export function ContactAutocomplete({ value, onChange, placeholder = 'Search nam
     }
   }, []);
 
-  const isNumericInput = (text: string) => /^[\d+\s\-().]*$/.test(text);
+  const looksLikeNumber = (text: string) => text.length > 0 && /^[+\d]/.test(text);
 
   const handleChange = (text: string) => {
-    setDisplayValue(text);
     setSelectedIndex(-1);
 
-    if (isNumericInput(text)) {
-      // Direct number entry — pass through, no search
-      onChange(text);
-      setIsOpen(false);
+    if (!text) {
+      setSearching(false);
+      setSearchText('');
       setResults([]);
+      setIsOpen(false);
+      onChange('');
       return;
     }
 
-    // Name search — debounce API call
+    if (looksLikeNumber(text)) {
+      setSearching(false);
+      setSearchText('');
+      setResults([]);
+      setIsOpen(false);
+      onChange(text);
+      return;
+    }
+
+    // Name search mode — don't call onChange, keep parent value unchanged
+    setSearching(true);
+    setSearchText(text);
+
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       if (text.length < 2) {
@@ -72,7 +80,8 @@ export function ContactAutocomplete({ value, onChange, placeholder = 'Search nam
 
   const selectContact = (contact: WAContact) => {
     onChange(contact.number);
-    setDisplayValue(contact.number);
+    setSearching(false);
+    setSearchText('');
     setIsOpen(false);
     setResults([]);
     setSelectedIndex(-1);
@@ -96,16 +105,24 @@ export function ContactAutocomplete({ value, onChange, placeholder = 'Search nam
   };
 
   const handleBlur = () => {
-    // Delay to allow click on dropdown item
-    setTimeout(() => setIsOpen(false), 200);
+    setTimeout(() => {
+      setIsOpen(false);
+      if (searching) {
+        setSearching(false);
+        setSearchText('');
+      }
+    }, 200);
   };
 
   const handleFocus = () => {
-    if (!isNumericInput(displayValue) && displayValue.length >= 2) {
+    if (searching && searchText.length >= 2 && results.length > 0) {
       updateDropdownPos();
-      if (results.length > 0) setIsOpen(true);
+      setIsOpen(true);
     }
   };
+
+  // Show search text while searching, otherwise show the actual number value
+  const displayValue = searching ? searchText : value;
 
   const dropdown = isOpen && (results.length > 0 || loading) && createPortal(
     <div

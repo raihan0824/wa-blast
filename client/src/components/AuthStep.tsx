@@ -10,6 +10,9 @@ export function AuthStep({ socket, onNext }: AuthStepProps) {
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('disconnected');
   const [error, setError] = useState<string | null>(null);
+  const [contactsSynced, setContactsSynced] = useState(0);
+  const [contactsBuffered, setContactsBuffered] = useState(0);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     socket.emit('connect-wa');
@@ -23,15 +26,25 @@ export function AuthStep({ socket, onNext }: AuthStepProps) {
       if (s !== 'error') setError(null);
     };
     const onError = (msg: string) => setError(msg);
+    const onContactsCount = (data: { synced: number; buffered: number }) => {
+      setContactsSynced(data.synced);
+      setContactsBuffered(data.buffered);
+      setSyncing(false);
+    };
 
     socket.on('qr', onQr);
     socket.on('status', onStatus);
     socket.on('wa:error', onError);
+    socket.on('contacts:count', onContactsCount);
+
+    // Request current count in case we missed the initial emit
+    socket.emit('get-contacts-count');
 
     return () => {
       socket.off('qr', onQr);
       socket.off('status', onStatus);
       socket.off('wa:error', onError);
+      socket.off('contacts:count', onContactsCount);
     };
   }, [socket]);
 
@@ -59,6 +72,30 @@ export function AuthStep({ socket, onNext }: AuthStepProps) {
             </div>
             <p className="text-green-700 font-semibold text-lg">Connected</p>
             <p className="text-green-600/70 text-sm mt-1">WhatsApp is ready</p>
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <p className="text-gray-500 text-sm">
+                {contactsSynced > 0
+                  ? `${contactsSynced.toLocaleString()} contacts synced`
+                  : 'No contacts synced yet'}
+                {contactsBuffered > 0 && (
+                  <span className="text-green-600 ml-1">
+                    ({contactsBuffered.toLocaleString()} available)
+                  </span>
+                )}
+              </p>
+              <button
+                onClick={() => {
+                  setSyncing(true);
+                  socket.emit('sync-contacts');
+                }}
+                disabled={syncing || contactsBuffered === 0}
+                className="mt-2 px-4 py-1.5 bg-green-100 text-green-700 text-sm rounded-lg font-medium hover:bg-green-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {syncing ? 'Syncing...' : contactsBuffered > 0
+                  ? `Sync ${contactsBuffered.toLocaleString()} Contacts`
+                  : 'Waiting for contacts...'}
+              </button>
+            </div>
           </div>
         ) : isError ? (
           <div className="text-center px-4">

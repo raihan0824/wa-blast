@@ -6,7 +6,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { SERVER_PORT } from './config.js';
 import './db.js';
-import { initSession, disconnect, getStatus } from './whatsapp/session.js';
+import { initSession, disconnect, getStatus, syncContacts } from './whatsapp/session.js';
+import { setIO, flushBufferToStore, getContactCount, getBufferCount } from './whatsapp/contactStore.js';
 
 // Prevent Baileys background tasks from crashing the process
 process.on('uncaughtException', (err) => {
@@ -30,6 +31,8 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: '*' },
 });
+
+setIO(io);
 
 app.use(cors());
 app.use(express.json());
@@ -74,6 +77,20 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
   socket.emit('status', getStatus());
+  socket.emit('contacts:count', { synced: getContactCount(), buffered: getBufferCount() });
+
+  socket.on('get-contacts-count', () => {
+    socket.emit('contacts:count', { synced: getContactCount(), buffered: getBufferCount() });
+  });
+
+  socket.on('sync-contacts', async () => {
+    try {
+      await syncContacts();
+    } catch {
+      // App state may already be synced
+    }
+    flushBufferToStore();
+  });
 
   socket.on('connect-wa', async () => {
     try {

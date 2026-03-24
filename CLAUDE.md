@@ -27,12 +27,14 @@ docker compose up --build   # runs on port 8543
 ## Project Structure
 
 - `server/src/index.ts` — Express + Socket.IO entry point, serves client static files in production
-- `server/src/db.ts` — SQLite database init (users, wa_auth, templates, blast_history, blast_recipients tables)
+- `server/src/db.ts` — SQLite database init (users, wa_auth, templates, blast_history, blast_recipients, wa_contacts tables)
 - `server/src/middleware/auth.ts` — JWT auth middleware (`requireAuth`, `verifySocketToken`)
 - `server/src/routes/auth.ts` — Registration & login endpoints
-- `server/src/whatsapp/session.ts` — Baileys session lifecycle, QR relay, reconnect logic
+- `server/src/whatsapp/session.ts` — Baileys session lifecycle, QR relay, reconnect logic, manual contact sync via `resyncAppState`
 - `server/src/whatsapp/authState.ts` — Custom Baileys auth state adapter backed by SQLite
+- `server/src/whatsapp/contactStore.ts` — SQLite-backed WA contact store with buffer/flush pattern, search, and Socket.IO count broadcasting
 - `server/src/whatsapp/sender.ts` — Rate-limited message sender with per-recipient DB tracking
+- `server/src/routes/waContacts.ts` — WA contact search endpoint (GET /api/wa-contacts?q=)
 - `server/src/routes/upload.ts` — File upload endpoint (multer, 5MB limit)
 - `server/src/routes/template.ts` — Saved template CRUD (per-user, SQLite-backed)
 - `server/src/routes/blast.ts` — Blast trigger endpoint, creates history/recipient records
@@ -42,6 +44,7 @@ docker compose up --build   # runs on port 8543
 - `server/src/config.ts` — Server port, JWT config, blast rate-limit settings
 - `client/src/App.tsx` — Page-based navigation: Connect → Upload → Template → Preview → Send + History
 - `client/src/components/Sidebar.tsx` — Sidebar with WA status, collapsible Blast dropdown, History, Settings
+- `client/src/components/ContactAutocomplete.tsx` — WA contact search autocomplete for number input fields
 - `client/src/components/` — Page components (LoginPage, AuthStep, UploadStep, TemplateStep, PreviewStep, BlastStep, HistoryPage)
 - `client/src/hooks/useSocket.ts` — Socket.IO singleton hook (passes JWT token)
 - `client/src/lib/api.ts` — REST fetch helpers with auth headers
@@ -55,5 +58,6 @@ docker compose up --build   # runs on port 8543
 - CSV/Excel `number` column is required. All other columns automatically become template variables. Accepts Indonesian aliases: nama, nomor, no hp.
 - Rate limiting: random 1.5-3s between messages, 12s pause every 20 messages (configurable in `server/src/config.ts`)
 - Blast history tracks per-recipient status (pending/sent/failed) with rendered message and error details
+- WA contacts are stored in SQLite `wa_contacts` table with a buffer/flush pattern: Baileys events write contacts as `synced=0` (buffered), manual "Sync Contacts" button flushes them to `synced=1` (searchable). `resyncAppState()` is called during sync to fetch saved contact names from the phone's address book.
 - `sock.end()` is used for disconnect (not `sock.logout()`) to avoid Baileys background task crashes
 - Global `uncaughtException`/`unhandledRejection` handlers in `index.ts` prevent Baileys from crashing the process
