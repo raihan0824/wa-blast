@@ -105,6 +105,22 @@ export async function deleteTemplate(id: number): Promise<void> {
   if (!res.ok) throw new Error('Failed to delete template');
 }
 
+// WA contact search
+export interface WAContact {
+  jid: string;
+  name: string;
+  number: string;
+}
+
+export async function searchWAContacts(query: string): Promise<{ results: WAContact[]; totalSynced: number }> {
+  if (!query || query.length < 2) return { results: [], totalSynced: 0 };
+  const res = await fetch(`/api/wa-contacts?q=${encodeURIComponent(query)}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) return { results: [], totalSynced: 0 };
+  return res.json();
+}
+
 // Blast history
 export async function getHistory(): Promise<BlastHistorySummary[]> {
   const res = await fetch('/api/history', { headers: authHeaders() });

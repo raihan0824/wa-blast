@@ -21,6 +21,7 @@ import uploadRouter from './routes/upload.js';
 import templateRouter from './routes/template.js';
 import { createBlastRouter } from './routes/blast.js';
 import historyRouter from './routes/history.js';
+import waContactsRouter from './routes/waContacts.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -41,6 +42,7 @@ app.use('/api/upload', requireAuth, uploadRouter);
 app.use('/api/template', requireAuth, templateRouter);
 app.use('/api/blast', requireAuth, createBlastRouter(io));
 app.use('/api/history', requireAuth, historyRouter);
+app.use('/api/wa-contacts', requireAuth, waContactsRouter);
 
 app.get('/api/status', requireAuth, (_req, res) => {
   res.json({ status: getStatus() });

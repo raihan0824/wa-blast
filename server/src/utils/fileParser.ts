@@ -36,15 +36,6 @@ function normalizeHeaderKey(header: string): string {
 function parseRows(rows: Record<string, string>[], headers: string[]): UploadResult {
   const numberCol = findColumn(headers, NUMBER_ALIASES);
 
-  if (!numberCol) {
-    return {
-      contacts: [],
-      columns: [],
-      totalRows: rows.length,
-      errors: [`Missing required column: number. Found columns: ${headers.join(', ')}`],
-    };
-  }
-
   // Build column list (all non-number headers, normalized)
   const columns: string[] = [];
   const headerMap: { original: string; key: string }[] = [];
@@ -61,17 +52,18 @@ function parseRows(rows: Record<string, string>[], headers: string[]): UploadRes
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const rawNumber = row[numberCol]?.trim();
 
-    if (!rawNumber) {
-      errors.push(`Row ${i + 2}: missing number`);
-      continue;
-    }
-
-    const number = normalizeNumber(rawNumber);
-    if (!validateNumber(number)) {
-      errors.push(`Row ${i + 2}: invalid number "${rawNumber}"`);
-      continue;
+    let number = '';
+    if (numberCol) {
+      const rawNumber = row[numberCol]?.trim();
+      if (rawNumber) {
+        const normalized = normalizeNumber(rawNumber);
+        if (validateNumber(normalized)) {
+          number = normalized;
+        } else {
+          errors.push(`Row ${i + 2}: invalid number "${rawNumber}"`);
+        }
+      }
     }
 
     const contact: Contact = { number };

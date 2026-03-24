@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { uploadFile, type Contact } from '../lib/api';
+import { ContactAutocomplete } from './ContactAutocomplete';
 
 interface UploadStepProps {
   onNext: (contacts: Contact[], columns: string[]) => void;
@@ -81,7 +82,7 @@ export function UploadStep({ onNext, onBack }: UploadStepProps) {
   return (
     <div className="flex flex-col items-center gap-6">
       <p className="text-gray-500">
-        Upload a CSV/Excel file with a <strong>number</strong> column, or add contacts manually below.
+        Upload a CSV/Excel file with contacts, or add them manually. The number column is optional — you can search WhatsApp contacts to fill in numbers.
       </p>
 
       <div
@@ -145,7 +146,7 @@ export function UploadStep({ onNext, onBack }: UploadStepProps) {
           </div>
         </div>
         <div className="flex flex-wrap gap-2 mb-4">
-          <span className="px-3 py-1 bg-gray-100 text-gray-500 text-xs rounded-full font-medium">number (required)</span>
+          <span className="px-3 py-1 bg-gray-100 text-gray-500 text-xs rounded-full font-medium">number</span>
           {columns.map((col) => (
             <span key={col} className="px-3 py-1 bg-green-50 text-green-700 text-xs rounded-full font-medium flex items-center gap-1.5">
               {col}
@@ -194,12 +195,9 @@ export function UploadStep({ onNext, onBack }: UploadStepProps) {
                     <tr key={i} className="border-t">
                       <td className="px-3 py-1.5 text-gray-400">{i + 1}</td>
                       <td className="px-3 py-1.5">
-                        <input
-                          type="text"
+                        <ContactAutocomplete
                           value={c.number}
-                          onChange={(e) => updateCell(i, 'number', e.target.value)}
-                          className="w-full border border-gray-200 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-green-500"
-                          placeholder="628..."
+                          onChange={(num) => updateCell(i, 'number', num)}
                         />
                       </td>
                       {columns.map((col) => (
@@ -234,6 +232,12 @@ export function UploadStep({ onNext, onBack }: UploadStepProps) {
           </div>
         )}
       </div>
+
+      {contacts.length > 0 && validContacts.length < contacts.length && (
+        <div className="w-full max-w-2xl bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-700">
+          {contacts.length - validContacts.length} contact{contacts.length - validContacts.length !== 1 ? 's are' : ' is'} missing a number. Click the number cell to search WhatsApp contacts or type a number directly.
+        </div>
+      )}
 
       <div className="flex gap-3">
         <button

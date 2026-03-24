@@ -7,6 +7,7 @@ import QRCode from 'qrcode';
 import type { Server as SocketIOServer } from 'socket.io';
 import type { WAStatus } from '../types.js';
 import { useSQLiteAuthState, clearSQLiteAuthState } from './authState.js';
+import { upsertContacts, clearContacts } from './contactStore.js';
 
 const MAX_RETRIES = 3;
 const WA_VERSION: [number, number, number] = [2, 3000, 1034195523];
@@ -35,6 +36,8 @@ export async function initSession(io: SocketIOServer): Promise<void> {
     console.log('[WA] Closing existing socket before reinit');
     sock.ev.removeAllListeners('connection.update');
     sock.ev.removeAllListeners('creds.update');
+    sock.ev.removeAllListeners('contacts.upsert');
+    sock.ev.removeAllListeners('contacts.update');
     sock.end(undefined);
     sock = null;
   }
@@ -105,6 +108,16 @@ export async function initSession(io: SocketIOServer): Promise<void> {
     });
 
     currentSock.ev.on('creds.update', saveCreds);
+
+    currentSock.ev.on('contacts.upsert', (contacts) => {
+      upsertContacts(contacts as { id: string; name?: string; notify?: string }[]);
+      console.log('[WA] Contacts upserted:', contacts.length);
+    });
+
+    currentSock.ev.on('contacts.update', (contacts) => {
+      upsertContacts(contacts as { id: string; name?: string; notify?: string }[]);
+      console.log('[WA] Contacts updated:', contacts.length);
+    });
   } catch (err) {
     console.error('[WA] Init failed:', err);
     initializing = false;
@@ -117,6 +130,8 @@ export async function disconnect(io: SocketIOServer): Promise<void> {
   if (sock) {
     sock.ev.removeAllListeners('connection.update');
     sock.ev.removeAllListeners('creds.update');
+    sock.ev.removeAllListeners('contacts.upsert');
+    sock.ev.removeAllListeners('contacts.update');
     try {
       sock.end(undefined);
     } catch {
@@ -125,6 +140,7 @@ export async function disconnect(io: SocketIOServer): Promise<void> {
     sock = null;
   }
   clearSQLiteAuthState();
+  clearContacts();
   initializing = false;
   retryCount = 0;
   status = 'disconnected';
