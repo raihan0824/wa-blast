@@ -49,6 +49,22 @@ function authHeaders(extra?: Record<string, string>): Record<string, string> {
   };
 }
 
+async function handleError(res: Response, fallback: string): Promise<never> {
+  if (res.status === 401) {
+    const { clearAuth } = await import('./auth');
+    clearAuth();
+    window.location.reload();
+  }
+  let message = fallback;
+  try {
+    const err = await res.json();
+    message = err.error || fallback;
+  } catch {
+    // Response wasn't JSON (e.g. HTML from catch-all)
+  }
+  throw new Error(message);
+}
+
 export async function uploadFile(file: File): Promise<UploadResult> {
   const formData = new FormData();
   formData.append('file', file);
@@ -57,10 +73,7 @@ export async function uploadFile(file: File): Promise<UploadResult> {
     headers: authHeaders(),
     body: formData,
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Upload failed');
-  }
+  if (!res.ok) await handleError(res, 'Upload failed');
   return res.json();
 }
 
@@ -70,17 +83,14 @@ export async function startBlast(contacts: Contact[], template: string) {
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ contacts, template }),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Blast failed');
-  }
+  if (!res.ok) await handleError(res, 'Blast failed');
   return res.json();
 }
 
 // Template CRUD
 export async function getTemplates(): Promise<SavedTemplate[]> {
   const res = await fetch('/api/template', { headers: authHeaders() });
-  if (!res.ok) throw new Error('Failed to load templates');
+  if (!res.ok) await handleError(res, 'Failed to load templates');
   return res.json();
 }
 
@@ -90,10 +100,7 @@ export async function createTemplate(name: string, body: string): Promise<SavedT
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ name, body }),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Failed to create template');
-  }
+  if (!res.ok) await handleError(res, 'Failed to create template');
   return res.json();
 }
 
@@ -102,7 +109,7 @@ export async function deleteTemplate(id: number): Promise<void> {
     method: 'DELETE',
     headers: authHeaders(),
   });
-  if (!res.ok) throw new Error('Failed to delete template');
+  if (!res.ok) await handleError(res, 'Failed to delete template');
 }
 
 // WA contact search
@@ -124,12 +131,12 @@ export async function searchWAContacts(query: string): Promise<{ results: WACont
 // Blast history
 export async function getHistory(): Promise<BlastHistorySummary[]> {
   const res = await fetch('/api/history', { headers: authHeaders() });
-  if (!res.ok) throw new Error('Failed to load history');
+  if (!res.ok) await handleError(res, 'Failed to load history');
   return res.json();
 }
 
 export async function getHistoryDetail(id: number): Promise<{ blast: BlastHistorySummary; recipients: BlastRecipientDetail[] }> {
   const res = await fetch(`/api/history/${id}`, { headers: authHeaders() });
-  if (!res.ok) throw new Error('Failed to load blast details');
+  if (!res.ok) await handleError(res, 'Failed to load blast details');
   return res.json();
 }

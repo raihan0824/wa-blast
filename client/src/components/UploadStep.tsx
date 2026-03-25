@@ -74,7 +74,7 @@ export function UploadStep({ onNext, onBack }: UploadStepProps) {
   };
 
   const updateCell = (index: number, key: string, value: string) => {
-    setContacts(contacts.map((c, i) => i === index ? { ...c, [key]: value } : c));
+    setContacts(prev => prev.map((c, i) => i === index ? { ...c, [key]: value } : c));
   };
 
   const validContacts = contacts.filter((c) => c.number.trim().length > 0);
