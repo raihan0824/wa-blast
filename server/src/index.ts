@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import { SERVER_PORT } from './config.js';
 import './db.js';
 import { initSession, disconnect, getStatus, syncContacts } from './whatsapp/session.js';
-import { setIO, flushBufferToStore, getContactCount, getBufferCount } from './whatsapp/contactStore.js';
+import { flushBufferToStore, getContactCount, getBufferCount } from './whatsapp/contactStore.js';
 
 // Prevent Baileys background tasks from crashing the process
 process.on('uncaughtException', (err) => {
@@ -17,6 +17,7 @@ process.on('unhandledRejection', (err) => {
   console.error('[Process] Unhandled rejection:', err);
 });
 import { requireAuth, verifySocketToken } from './middleware/auth.js';
+import type { AuthRequest } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
 import uploadRouter from './routes/upload.js';
 import templateRouter from './routes/template.js';
@@ -32,8 +33,6 @@ const io = new Server(httpServer, {
   cors: { origin: '*' },
 });
 
-setIO(io);
-
 app.use(cors());
 app.use(express.json());
 
@@ -47,8 +46,9 @@ app.use('/api/blast', requireAuth, createBlastRouter(io));
 app.use('/api/history', requireAuth, historyRouter);
 app.use('/api/wa-contacts', requireAuth, waContactsRouter);
 
-app.get('/api/status', requireAuth, (_req, res) => {
-  res.json({ status: getStatus() });
+app.get('/api/status', requireAuth, (req, res) => {
+  const { user } = req as AuthRequest;
+  res.json({ status: getStatus(user!.id) });
 });
 
 // Serve client static files in production
@@ -75,26 +75,32 @@ io.use((socket, next) => {
 });
 
 io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
-  socket.emit('status', getStatus());
-  socket.emit('contacts:count', { synced: getContactCount(), buffered: getBufferCount() });
+  const user = (socket as unknown as { user: { id: number; username: string } }).user;
+  const userId = user.id;
+
+  // Join user-specific room for scoped event delivery
+  socket.join(`user:${userId}`);
+
+  console.log('Client connected:', socket.id, `(user:${userId})`);
+  socket.emit('status', getStatus(userId));
+  socket.emit('contacts:count', { synced: getContactCount(userId), buffered: getBufferCount(userId) });
 
   socket.on('get-contacts-count', () => {
-    socket.emit('contacts:count', { synced: getContactCount(), buffered: getBufferCount() });
+    socket.emit('contacts:count', { synced: getContactCount(userId), buffered: getBufferCount(userId) });
   });
 
   socket.on('sync-contacts', async () => {
     try {
-      await syncContacts();
+      await syncContacts(userId);
     } catch {
       // App state may already be synced
     }
-    flushBufferToStore();
+    flushBufferToStore(userId, io);
   });
 
   socket.on('connect-wa', async () => {
     try {
-      await initSession(io);
+      await initSession(userId, io);
     } catch (err) {
       console.error('Failed to init WhatsApp session:', err);
       socket.emit('status', 'disconnected');
@@ -103,7 +109,7 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect-wa', async () => {
     try {
-      await disconnect(io);
+      await disconnect(userId, io);
     } catch (err) {
       console.error('Failed to logout:', err);
     }

@@ -12,24 +12,42 @@ import { bufferContacts, clearContacts } from './contactStore.js';
 const MAX_RETRIES = 3;
 const WA_VERSION: [number, number, number] = [2, 3000, 1034195523];
 
-let sock: ReturnType<typeof makeWASocket> | null = null;
-let status: WAStatus = 'disconnected';
-let initializing = false;
-let retryCount = 0;
-
-// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-export function getSocket(): typeof sock {
-  return sock;
+interface UserSession {
+  sock: ReturnType<typeof makeWASocket> | null;
+  status: WAStatus;
+  initializing: boolean;
+  retryCount: number;
 }
 
-export function getStatus(): WAStatus {
-  return status;
+const sessions = new Map<number, UserSession>();
+
+function getSession(userId: number): UserSession {
+  let session = sessions.get(userId);
+  if (!session) {
+    session = { sock: null, status: 'disconnected', initializing: false, retryCount: 0 };
+    sessions.set(userId, session);
+  }
+  return session;
+}
+
+function emitToUser(io: SocketIOServer, userId: number, event: string, ...args: unknown[]): void {
+  io.to(`user:${userId}`).emit(event, ...args);
+}
+
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+export function getSocket(userId: number): ReturnType<typeof makeWASocket> | null {
+  return sessions.get(userId)?.sock ?? null;
+}
+
+export function getStatus(userId: number): WAStatus {
+  return sessions.get(userId)?.status ?? 'disconnected';
 }
 
 /** Force Baileys to re-sync app state, which triggers contacts.upsert with saved names */
-export async function syncContacts(): Promise<void> {
-  if (!sock) throw new Error('WhatsApp not connected');
-  await sock.resyncAppState([
+export async function syncContacts(userId: number): Promise<void> {
+  const session = sessions.get(userId);
+  if (!session?.sock) throw new Error('WhatsApp not connected');
+  await session.sock.resyncAppState([
     'critical_block',
     'critical_unblock_low',
     'regular_high',
@@ -38,63 +56,65 @@ export async function syncContacts(): Promise<void> {
   ], false);
 }
 
-export async function initSession(io: SocketIOServer): Promise<void> {
-  if (initializing) {
-    console.log('[WA] Already initializing, skipping');
+export async function initSession(userId: number, io: SocketIOServer): Promise<void> {
+  const session = getSession(userId);
+
+  if (session.initializing) {
+    console.log(`[WA:${userId}] Already initializing, skipping`);
     return;
   }
 
-  if (sock) {
-    console.log('[WA] Closing existing socket before reinit');
-    sock.ev.removeAllListeners('connection.update');
-    sock.ev.removeAllListeners('creds.update');
-    sock.ev.removeAllListeners('messaging-history.set');
-    sock.ev.removeAllListeners('contacts.upsert');
-    sock.ev.removeAllListeners('contacts.update');
-    sock.end(undefined);
-    sock = null;
+  if (session.sock) {
+    console.log(`[WA:${userId}] Closing existing socket before reinit`);
+    session.sock.ev.removeAllListeners('connection.update');
+    session.sock.ev.removeAllListeners('creds.update');
+    session.sock.ev.removeAllListeners('messaging-history.set');
+    session.sock.ev.removeAllListeners('contacts.upsert');
+    session.sock.ev.removeAllListeners('contacts.update');
+    session.sock.end(undefined);
+    session.sock = null;
   }
 
-  initializing = true;
-  console.log('[WA] Initializing session... (attempt', retryCount + 1, ')');
+  session.initializing = true;
+  console.log(`[WA:${userId}] Initializing session... (attempt`, session.retryCount + 1, ')');
 
   try {
-    const { state, saveCreds } = useSQLiteAuthState();
+    const { state, saveCreds } = useSQLiteAuthState(userId);
 
-    sock = makeWASocket({
+    const sock = makeWASocket({
       auth: state,
       version: WA_VERSION,
       syncFullHistory: true,
     });
 
-    const currentSock = sock;
+    session.sock = sock;
 
-    currentSock.ev.on('connection.update', async (update) => {
+    sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
-      console.log('[WA] Connection update:', { connection, qr: !!qr });
+      console.log(`[WA:${userId}] Connection update:`, { connection, qr: !!qr });
 
       if (qr) {
-        status = 'qr_pending';
-        retryCount = 0;
+        session.status = 'qr_pending';
+        session.retryCount = 0;
         const qrDataUrl = await QRCode.toDataURL(qr);
-        io.emit('qr', qrDataUrl);
-        io.emit('status', status);
-        console.log('[WA] QR code emitted to client');
+        emitToUser(io, userId, 'qr', qrDataUrl);
+        emitToUser(io, userId, 'status', session.status);
+        console.log(`[WA:${userId}] QR code emitted to client`);
       }
 
       if (connection === 'open') {
-        status = 'connected';
-        initializing = false;
-        retryCount = 0;
-        io.emit('status', status);
-        console.log('[WA] Connected successfully');
+        session.status = 'connected';
+        session.initializing = false;
+        session.retryCount = 0;
+        emitToUser(io, userId, 'status', session.status);
+        console.log(`[WA:${userId}] Connected successfully`);
       }
 
       if (connection === 'close') {
         const reason = (lastDisconnect?.error as Boom)?.output?.statusCode;
-        console.log('[WA] Connection closed, reason:', reason);
-        sock = null;
-        initializing = false;
+        console.log(`[WA:${userId}] Connection closed, reason:`, reason);
+        session.sock = null;
+        session.initializing = false;
 
         const shouldClearAuth =
           reason === DisconnectReason.loggedOut ||
@@ -103,66 +123,69 @@ export async function initSession(io: SocketIOServer): Promise<void> {
           reason === DisconnectReason.connectionReplaced;
 
         if (shouldClearAuth) {
-          console.log('[WA] Got', reason, '— clearing auth state and retrying fresh');
-          clearSQLiteAuthState();
+          console.log(`[WA:${userId}] Got`, reason, '— clearing auth state and retrying fresh');
+          clearSQLiteAuthState(userId);
         }
 
-        retryCount++;
-        if (retryCount <= MAX_RETRIES) {
-          console.log('[WA] Retrying... (attempt', retryCount + 1, ')');
-          await initSession(io);
+        session.retryCount++;
+        if (session.retryCount <= MAX_RETRIES) {
+          console.log(`[WA:${userId}] Retrying... (attempt`, session.retryCount + 1, ')');
+          await initSession(userId, io);
         } else {
-          console.log('[WA] Max retries reached, giving up');
-          status = 'error';
-          retryCount = 0;
-          io.emit('status', status);
-          io.emit('wa:error', `Connection failed after ${MAX_RETRIES} attempts (code: ${reason}). Try again.`);
+          console.log(`[WA:${userId}] Max retries reached, giving up`);
+          session.status = 'error';
+          session.retryCount = 0;
+          emitToUser(io, userId, 'status', session.status);
+          emitToUser(io, userId, 'wa:error', `Connection failed after ${MAX_RETRIES} attempts (code: ${reason}). Try again.`);
         }
       }
     });
 
-    currentSock.ev.on('creds.update', saveCreds);
+    sock.ev.on('creds.update', saveCreds);
 
     // Initial contact sync comes via messaging-history.set in Baileys v6
-    currentSock.ev.on('messaging-history.set', ({ contacts: historyContacts }) => {
+    sock.ev.on('messaging-history.set', ({ contacts: historyContacts }) => {
       if (historyContacts && historyContacts.length > 0) {
-        bufferContacts(historyContacts as unknown as Record<string, unknown>[]);
+        bufferContacts(userId, historyContacts as unknown as Record<string, unknown>[], io);
       }
     });
 
-    currentSock.ev.on('contacts.upsert', (contacts) => {
-      bufferContacts(contacts as unknown as Record<string, unknown>[]);
+    sock.ev.on('contacts.upsert', (contacts) => {
+      bufferContacts(userId, contacts as unknown as Record<string, unknown>[], io);
     });
 
-    currentSock.ev.on('contacts.update', (contacts) => {
-      bufferContacts(contacts as unknown as Record<string, unknown>[]);
+    sock.ev.on('contacts.update', (contacts) => {
+      bufferContacts(userId, contacts as unknown as Record<string, unknown>[], io);
     });
   } catch (err) {
-    console.error('[WA] Init failed:', err);
-    initializing = false;
-    status = 'disconnected';
-    io.emit('status', status);
+    console.error(`[WA:${userId}] Init failed:`, err);
+    session.initializing = false;
+    session.status = 'disconnected';
+    emitToUser(io, userId, 'status', session.status);
   }
 }
 
-export async function disconnect(io: SocketIOServer): Promise<void> {
-  if (sock) {
-    sock.ev.removeAllListeners('connection.update');
-    sock.ev.removeAllListeners('creds.update');
-    sock.ev.removeAllListeners('messaging-history.set');
-    sock.ev.removeAllListeners('contacts.upsert');
-    sock.ev.removeAllListeners('contacts.update');
+export async function disconnect(userId: number, io: SocketIOServer): Promise<void> {
+  const session = sessions.get(userId);
+  if (session?.sock) {
+    session.sock.ev.removeAllListeners('connection.update');
+    session.sock.ev.removeAllListeners('creds.update');
+    session.sock.ev.removeAllListeners('messaging-history.set');
+    session.sock.ev.removeAllListeners('contacts.upsert');
+    session.sock.ev.removeAllListeners('contacts.update');
     try {
-      sock.end(undefined);
+      session.sock.end(undefined);
     } catch {
       // ignore — background tasks may throw on closed connection
     }
-    sock = null;
+    session.sock = null;
   }
-  clearSQLiteAuthState();
-  clearContacts();
-  initializing = false;
-  retryCount = 0;
-  status = 'disconnected';
-  io.emit('status', status);
+  clearSQLiteAuthState(userId);
+  clearContacts(userId, io);
+  if (session) {
+    session.initializing = false;
+    session.retryCount = 0;
+    session.status = 'disconnected';
+  }
+  emitToUser(io, userId, 'status', 'disconnected');
 }

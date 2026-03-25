@@ -11,17 +11,18 @@ export function createBlastRouter(io: SocketIOServer): Router {
 
   router.post('/', (req, res) => {
     const { user } = req as AuthRequest;
+    const userId = user!.id;
     const { contacts, template } = req.body as {
       contacts: Contact[];
       template: string;
     };
 
-    if (getStatus() !== 'connected') {
+    if (getStatus(userId) !== 'connected') {
       res.status(400).json({ error: 'WhatsApp is not connected' });
       return;
     }
 
-    const sock = getSocket();
+    const sock = getSocket(userId);
     if (!sock) {
       res.status(500).json({ error: 'WhatsApp socket not available' });
       return;
@@ -40,7 +41,7 @@ export function createBlastRouter(io: SocketIOServer): Router {
     // Create blast history record
     const historyResult = db.prepare(
       'INSERT INTO blast_history (user_id, template, total) VALUES (?, ?, ?)'
-    ).run(user!.id, template, contacts.length);
+    ).run(userId, template, contacts.length);
     const blastId = Number(historyResult.lastInsertRowid);
 
     // Insert all recipients
@@ -56,10 +57,10 @@ export function createBlastRouter(io: SocketIOServer): Router {
     insertMany(contacts);
 
     // Start blast asynchronously
-    executeBlast(sock, contacts, template, io, blastId).catch((err) => {
+    executeBlast(sock, contacts, template, io, blastId, userId).catch((err) => {
       console.error('Blast execution error:', err);
       db.prepare("UPDATE blast_history SET status = 'error', completed_at = datetime('now') WHERE id = ?").run(blastId);
-      io.emit('blast:error', { number: '', error: 'Blast execution failed' });
+      io.to(`user:${userId}`).emit('blast:error', { number: '', error: 'Blast execution failed' });
     });
 
     res.json({ status: 'started', totalMessages: contacts.length, blastId });
