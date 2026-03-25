@@ -10,6 +10,13 @@ const db: InstanceType<typeof Database> = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+// Migration: drop old wa_auth / wa_contacts tables that lack user_id column
+const waAuthSchema = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='wa_auth'").get() as { sql: string } | undefined;
+if (waAuthSchema && !waAuthSchema.sql.includes('user_id')) {
+  db.exec('DROP TABLE IF EXISTS wa_contacts; DROP TABLE IF EXISTS wa_auth;');
+  console.log('[DB] Migrated: dropped old wa_auth/wa_contacts tables (no user_id). They will be recreated with per-user isolation.');
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -19,8 +26,10 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS wa_auth (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    PRIMARY KEY (user_id, key)
   );
 
   CREATE TABLE IF NOT EXISTS templates (
@@ -59,13 +68,15 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_blast_recipients_blast ON blast_recipients(blast_id);
 
   CREATE TABLE IF NOT EXISTS wa_contacts (
-    jid TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    jid TEXT NOT NULL,
     number TEXT NOT NULL,
     name TEXT NOT NULL DEFAULT '',
-    synced INTEGER NOT NULL DEFAULT 0
+    synced INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, jid)
   );
 
-  CREATE INDEX IF NOT EXISTS idx_wa_contacts_synced ON wa_contacts(synced);
+  CREATE INDEX IF NOT EXISTS idx_wa_contacts_user_synced ON wa_contacts(user_id, synced);
 `);
 
 console.log('[DB] SQLite initialized at', DB_PATH);

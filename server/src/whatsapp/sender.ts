@@ -18,11 +18,13 @@ export async function executeBlast(
   contacts: Contact[],
   template: string,
   io: SocketIOServer,
-  blastId: number
+  blastId: number,
+  userId: number
 ): Promise<void> {
   let sent = 0;
   let failed = 0;
   const total = contacts.length;
+  const room = `user:${userId}`;
 
   const updateRecipient = db.prepare(
     "UPDATE blast_recipients SET status = ?, error = ?, rendered_message = ?, sent_at = datetime('now') WHERE id = (SELECT id FROM blast_recipients WHERE blast_id = ? AND number = ? AND status = 'pending' LIMIT 1)"
@@ -53,16 +55,16 @@ export async function executeBlast(
         } catch {
           failed++;
           updateRecipient.run('failed', errorMsg, message, blastId, number);
-          io.emit('blast:error', { number, name: variables.name || '', error: errorMsg });
+          io.to(room).emit('blast:error', { number, name: variables.name || '', error: errorMsg });
         }
       } else {
         failed++;
         updateRecipient.run('failed', errorMsg, message, blastId, number);
-        io.emit('blast:error', { number, name: variables.name || '', error: errorMsg });
+        io.to(room).emit('blast:error', { number, name: variables.name || '', error: errorMsg });
       }
     }
 
-    io.emit('blast:progress', { sent, failed, total });
+    io.to(room).emit('blast:progress', { sent, failed, total });
 
     // Rate limiting
     if ((i + 1) % BLAST_CONFIG.batchSize === 0 && i < contacts.length - 1) {
@@ -73,5 +75,5 @@ export async function executeBlast(
   }
 
   updateHistory.run(sent, failed, 'completed', blastId);
-  io.emit('blast:complete', { sent, failed, total });
+  io.to(room).emit('blast:complete', { sent, failed, total });
 }

@@ -2,28 +2,28 @@ import { WAProto, initAuthCreds, BufferJSON } from '@whiskeysockets/baileys';
 import type { AuthenticationCreds, AuthenticationState, SignalDataTypeMap } from '@whiskeysockets/baileys';
 import db from '../db.js';
 
-const getStmt = db.prepare('SELECT value FROM wa_auth WHERE key = ?');
-const setStmt = db.prepare('INSERT OR REPLACE INTO wa_auth (key, value) VALUES (?, ?)');
-const delStmt = db.prepare('DELETE FROM wa_auth WHERE key = ?');
-const delPrefixStmt = db.prepare('DELETE FROM wa_auth WHERE key LIKE ?');
+const getStmt = db.prepare('SELECT value FROM wa_auth WHERE user_id = ? AND key = ?');
+const setStmt = db.prepare('INSERT OR REPLACE INTO wa_auth (user_id, key, value) VALUES (?, ?, ?)');
+const delStmt = db.prepare('DELETE FROM wa_auth WHERE user_id = ? AND key = ?');
+const delAllStmt = db.prepare('DELETE FROM wa_auth WHERE user_id = ?');
 
-function readData(key: string): unknown | null {
-  const row = getStmt.get(key) as { value: string } | undefined;
+function readData(userId: number, key: string): unknown | null {
+  const row = getStmt.get(userId, key) as { value: string } | undefined;
   if (!row) return null;
   return JSON.parse(row.value, BufferJSON.reviver);
 }
 
-function writeData(key: string, data: unknown): void {
+function writeData(userId: number, key: string, data: unknown): void {
   const value = JSON.stringify(data, BufferJSON.replacer);
-  setStmt.run(key, value);
+  setStmt.run(userId, key, value);
 }
 
-function removeData(key: string): void {
-  delStmt.run(key);
+function removeData(userId: number, key: string): void {
+  delStmt.run(userId, key);
 }
 
-export function useSQLiteAuthState(): { state: AuthenticationState; saveCreds: () => void } {
-  const creds: AuthenticationCreds = (readData('creds') as AuthenticationCreds) || initAuthCreds();
+export function useSQLiteAuthState(userId: number): { state: AuthenticationState; saveCreds: () => void } {
+  const creds: AuthenticationCreds = (readData(userId, 'creds') as AuthenticationCreds) || initAuthCreds();
 
   const state: AuthenticationState = {
     creds,
@@ -31,7 +31,7 @@ export function useSQLiteAuthState(): { state: AuthenticationState; saveCreds: (
       get: <T extends keyof SignalDataTypeMap>(type: T, ids: string[]) => {
         const data: { [id: string]: SignalDataTypeMap[T] } = {};
         for (const id of ids) {
-          const value = readData(`${type}-${id}`);
+          const value = readData(userId, `${type}-${id}`);
           if (value) {
             if (type === 'app-state-sync-key') {
               data[id] = WAProto.Message.AppStateSyncKeyData.fromObject(value) as unknown as SignalDataTypeMap[T];
@@ -49,9 +49,9 @@ export function useSQLiteAuthState(): { state: AuthenticationState; saveCreds: (
               const value = data[category as keyof SignalDataTypeMap]![id];
               const key = `${category}-${id}`;
               if (value) {
-                writeData(key, value);
+                writeData(userId, key, value);
               } else {
-                removeData(key);
+                removeData(userId, key);
               }
             }
           }
@@ -62,13 +62,13 @@ export function useSQLiteAuthState(): { state: AuthenticationState; saveCreds: (
   };
 
   const saveCreds = (): void => {
-    writeData('creds', state.creds);
+    writeData(userId, 'creds', state.creds);
   };
 
   return { state, saveCreds };
 }
 
-export function clearSQLiteAuthState(): void {
-  delPrefixStmt.run('%');
-  console.log('[WA] Cleared SQLite auth state');
+export function clearSQLiteAuthState(userId: number): void {
+  delAllStmt.run(userId);
+  console.log(`[WA] Cleared SQLite auth state for user ${userId}`);
 }
