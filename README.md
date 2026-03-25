@@ -15,8 +15,10 @@ WhatsApp message blaster with web UI. Send personalized messages to contacts fro
 - Preview all messages before sending
 - Real-time progress tracking via Socket.IO
 - Blast history with per-recipient detail (status, rendered message, errors)
+- Per-user WhatsApp session isolation (multi-tenant safe)
 - Rate limiting to avoid bans
 - Sidebar navigation with collapsible menu
+- Mobile-friendly responsive UI
 
 ## Tech Stack
 

@@ -27,13 +27,13 @@ docker compose up --build   # runs on port 8543
 ## Project Structure
 
 - `server/src/index.ts` — Express + Socket.IO entry point, serves client static files in production
-- `server/src/db.ts` — SQLite database init (users, wa_auth, templates, blast_history, blast_recipients, wa_contacts tables)
+- `server/src/db.ts` — SQLite database init (users, wa_auth, templates, blast_history, blast_recipients, wa_contacts tables). Auto-migrates old schema (adds `user_id` to wa_auth/wa_contacts if missing).
 - `server/src/middleware/auth.ts` — JWT auth middleware (`requireAuth`, `verifySocketToken`)
 - `server/src/routes/auth.ts` — Registration & login endpoints
-- `server/src/whatsapp/session.ts` — Baileys session lifecycle, QR relay, reconnect logic, manual contact sync via `resyncAppState`
-- `server/src/whatsapp/authState.ts` — Custom Baileys auth state adapter backed by SQLite
-- `server/src/whatsapp/contactStore.ts` — SQLite-backed WA contact store with buffer/flush pattern, search, and Socket.IO count broadcasting
-- `server/src/whatsapp/sender.ts` — Rate-limited message sender with per-recipient DB tracking
+- `server/src/whatsapp/session.ts` — Per-user Baileys session lifecycle (`Map<userId, UserSession>`), QR relay, reconnect logic, manual contact sync via `resyncAppState`. Events scoped to Socket.IO rooms (`user:<id>`).
+- `server/src/whatsapp/authState.ts` — Custom Baileys auth state adapter backed by SQLite, scoped per user (`user_id + key` composite PK)
+- `server/src/whatsapp/contactStore.ts` — SQLite-backed WA contact store with buffer/flush pattern, search, and Socket.IO count broadcasting — all scoped per user
+- `server/src/whatsapp/sender.ts` — Rate-limited message sender with per-recipient DB tracking, blast events scoped to user's Socket.IO room
 - `server/src/routes/waContacts.ts` — WA contact search endpoint (GET /api/wa-contacts?q=)
 - `server/src/routes/upload.ts` — File upload endpoint (multer, 5MB limit)
 - `server/src/routes/template.ts` — Saved template CRUD (per-user, SQLite-backed)
@@ -53,11 +53,12 @@ docker compose up --build   # runs on port 8543
 ## Key Notes
 
 - Baileys requires a current WA protocol version — hardcoded in `session.ts` as `WA_VERSION`. If QR stops appearing (405 errors), update this version from https://github.com/WhiskeySockets/Baileys/issues or https://wppconnect.io/whatsapp-versions/
-- Auth state persists in SQLite `wa_auth` table. Clear the table (or delete the .db file) to force re-authentication.
+- **WhatsApp sessions are per-user** — each user gets their own Baileys socket, auth state, and contact store. Sessions are stored in a `Map<number, UserSession>` in memory. Socket.IO rooms (`user:<id>`) scope all event emissions so users only see their own WA status/QR/blast progress.
+- Auth state persists in SQLite `wa_auth` table (keyed by `user_id + key`). Clear the table (or delete the .db file) to force re-authentication.
 - `Contact` type is `{ number: string; [key: string]: string }` — open-ended variables. Only `number` is required; all other fields are template variables.
 - CSV/Excel `number` column is required. All other columns automatically become template variables. Accepts Indonesian aliases: nama, nomor, no hp.
 - Rate limiting: random 1.5-3s between messages, 12s pause every 20 messages (configurable in `server/src/config.ts`)
 - Blast history tracks per-recipient status (pending/sent/failed) with rendered message and error details
-- WA contacts are stored in SQLite `wa_contacts` table with a buffer/flush pattern: Baileys events write contacts as `synced=0` (buffered), manual "Sync Contacts" button flushes them to `synced=1` (searchable). `resyncAppState()` is called during sync to fetch saved contact names from the phone's address book.
+- WA contacts are stored in SQLite `wa_contacts` table (keyed by `user_id + jid`) with a buffer/flush pattern: Baileys events write contacts as `synced=0` (buffered), manual "Sync Contacts" button flushes them to `synced=1` (searchable). `resyncAppState()` is called during sync to fetch saved contact names from the phone's address book.
 - `sock.end()` is used for disconnect (not `sock.logout()`) to avoid Baileys background task crashes
 - Global `uncaughtException`/`unhandledRejection` handlers in `index.ts` prevent Baileys from crashing the process
