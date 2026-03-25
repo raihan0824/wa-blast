@@ -20,9 +20,11 @@ interface SidebarProps {
   collapsed: boolean;
   socket: Socket;
   blastActive?: boolean;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
-export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collapsed, socket, blastActive }: SidebarProps) {
+export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collapsed, socket, blastActive, mobileOpen, onMobileClose }: SidebarProps) {
   const [waStatus, setWaStatus] = useState<string>('disconnected');
   const [blastOpen, setBlastOpen] = useState(true);
   const [contactsSynced, setContactsSynced] = useState(0);
@@ -58,9 +60,15 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
     waStatus === 'error' ? 'Error' :
     'Disconnected';
 
+  const handleNavigate = (page: Page) => {
+    onNavigate(page);
+    onMobileClose?.();
+  };
+
+  // Collapsed sidebar (desktop only — hidden on mobile)
   if (collapsed) {
     return (
-      <aside className="w-16 bg-white border-r border-gray-200 flex flex-col min-h-screen items-center py-4">
+      <aside className="hidden md:flex w-16 bg-white border-r border-gray-200 flex-col min-h-screen items-center py-4">
         <button
           onClick={onCollapse}
           className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors mb-4"
@@ -73,7 +81,7 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
 
         <div className="flex-1 flex flex-col items-center gap-2">
           <button
-            onClick={() => onNavigate('connect')}
+            onClick={() => handleNavigate('connect')}
             className={`p-2 rounded-lg transition-colors ${currentPage === 'connect' ? 'bg-green-50 text-green-700' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'}`}
             title="Connect"
           >
@@ -86,7 +94,7 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
             return (
               <button
                 key={p.id}
-                onClick={() => !disabled && onNavigate(p.id as Page)}
+                onClick={() => !disabled && handleNavigate(p.id as Page)}
                 disabled={disabled}
                 className={`p-2 rounded-lg transition-colors ${
                   isActive ? 'bg-green-50 text-green-700' :
@@ -116,8 +124,8 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
     );
   }
 
-  return (
-    <aside className="w-64 bg-white border-r border-gray-200 flex flex-col min-h-screen">
+  const sidebarContent = (
+    <>
       {/* Header */}
       <div className="p-6 border-b border-gray-100 flex items-center justify-between">
         <div>
@@ -125,12 +133,25 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
           <p className="text-xs text-gray-400 mt-1">Message blaster</p>
         </div>
         <button
-          onClick={onCollapse}
-          className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+          onClick={() => {
+            onMobileClose?.();
+            onCollapse();
+          }}
+          className="hidden md:block p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
           title="Collapse sidebar"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+          </svg>
+        </button>
+        {/* Mobile close button */}
+        <button
+          onClick={onMobileClose}
+          className="md:hidden p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+          title="Close menu"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
@@ -142,7 +163,7 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
           : 'bg-gray-50 border-gray-100'
       }`}>
         <button
-          onClick={() => onNavigate('connect')}
+          onClick={() => handleNavigate('connect')}
           className={`w-full px-4 py-3 text-left transition-colors rounded-lg ${
             currentPage !== 'connect' ? 'hover:bg-gray-100' : ''
           }`}
@@ -202,7 +223,7 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
               return (
                 <li key={p.id}>
                   <button
-                    onClick={() => !disabled && onNavigate(p.id as Page)}
+                    onClick={() => !disabled && handleNavigate(p.id as Page)}
                     disabled={disabled}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                       isActive
@@ -228,7 +249,7 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
       <div className="px-3 mb-2">
         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2">Settings</p>
         <button
-          onClick={() => onNavigate('connect')}
+          onClick={() => handleNavigate('connect')}
           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
             currentPage === 'connect' ? 'bg-green-50 text-green-800' : 'text-gray-600 hover:bg-gray-100'
           }`}
@@ -259,6 +280,32 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
           </svg>
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-40 md:hidden"
+          onClick={onMobileClose}
+        />
+      )}
+
+      {/* Desktop sidebar — always visible */}
+      <aside className="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col min-h-screen">
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile sidebar — slide-in drawer */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-gray-200 flex flex-col transform transition-transform duration-200 ease-in-out md:hidden ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        {sidebarContent}
+      </aside>
+    </>
   );
 }

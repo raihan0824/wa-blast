@@ -79,8 +79,8 @@ export function TemplateStep({ contacts, columns, onNext, onBack, initialTemplat
   const isValid = template.trim().length > 0;
 
   return (
-    <div className="flex flex-col items-center gap-6">
-      <p className="text-gray-500">
+    <div className="flex flex-col items-center gap-4 md:gap-6">
+      <p className="text-gray-500 text-sm md:text-base text-center">
         Write your message. Use variable tags to personalize for each recipient.
       </p>
 
@@ -136,7 +136,7 @@ export function TemplateStep({ contacts, columns, onNext, onBack, initialTemplat
             <button
               onClick={handleSaveTemplate}
               disabled={!saveName.trim() || !template.trim()}
-              className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg font-medium hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg font-medium hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
             >
               Save
             </button>
@@ -167,27 +167,27 @@ export function TemplateStep({ contacts, columns, onNext, onBack, initialTemplat
       </div>
 
       {template.trim() && (
-        <div className="w-full max-w-lg bg-gray-50 border rounded-lg p-4 text-left">
+        <div className="w-full max-w-lg bg-gray-50 border rounded-lg p-3 md:p-4 text-left">
           <p className="text-sm font-medium text-gray-500 mb-2">
             Preview (for {firstContact.name || firstContact.number || 'Recipient'}):
           </p>
-          <p className="text-gray-800 whitespace-pre-wrap">{preview}</p>
+          <p className="text-gray-800 whitespace-pre-wrap text-sm md:text-base">{preview}</p>
         </div>
       )}
 
-      <div className="flex gap-3">
+      <div className="flex gap-3 w-full sm:w-auto">
         <button
           onClick={onBack}
-          className="px-6 py-2.5 border border-gray-300 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+          className="flex-1 sm:flex-initial px-6 py-2.5 border border-gray-300 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors"
         >
-          ← Back
+          &larr; Back
         </button>
         <button
           onClick={() => onNext(template)}
           disabled={!isValid}
-          className="px-6 py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="flex-1 sm:flex-initial px-6 py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          Next →
+          Next &rarr;
         </button>
       </div>
     </div>
