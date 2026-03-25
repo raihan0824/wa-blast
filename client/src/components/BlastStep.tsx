@@ -54,9 +54,9 @@ export function BlastStep({ socket, contacts, template, onReset }: BlastStepProp
 
   if (blastError) {
     return (
-      <div className="flex flex-col items-center gap-6">
-        <h2 className="text-2xl font-semibold text-red-600">Blast Failed</h2>
-        <p className="text-gray-600">{blastError}</p>
+      <div className="flex flex-col items-center gap-4 md:gap-6">
+        <h2 className="text-xl md:text-2xl font-semibold text-red-600">Blast Failed</h2>
+        <p className="text-gray-600 text-center">{blastError}</p>
         <button
           onClick={onReset}
           className="px-6 py-2.5 border border-gray-300 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors"
@@ -68,8 +68,8 @@ export function BlastStep({ socket, contacts, template, onReset }: BlastStepProp
   }
 
   return (
-    <div className="flex flex-col items-center gap-6">
-      <h2 className="text-2xl font-semibold text-gray-800">
+    <div className="flex flex-col items-center gap-4 md:gap-6">
+      <h2 className="text-xl md:text-2xl font-semibold text-gray-800">
         {isComplete ? 'Blast Complete' : 'Sending Messages...'}
       </h2>
 
@@ -88,17 +88,17 @@ export function BlastStep({ socket, contacts, template, onReset }: BlastStepProp
       </div>
 
       {/* Stats */}
-      <div className="flex gap-8">
+      <div className="flex gap-6 md:gap-8 flex-wrap justify-center">
         <div className="text-center">
-          <p className="text-3xl font-bold text-green-600">{progress.sent}</p>
+          <p className="text-2xl md:text-3xl font-bold text-green-600">{progress.sent}</p>
           <p className="text-sm text-gray-500">Sent</p>
         </div>
         <div className="text-center">
-          <p className="text-3xl font-bold text-red-500">{progress.failed}</p>
+          <p className="text-2xl md:text-3xl font-bold text-red-500">{progress.failed}</p>
           <p className="text-sm text-gray-500">Failed</p>
         </div>
         <div className="text-center">
-          <p className="text-3xl font-bold text-gray-600">{progress.total}</p>
+          <p className="text-2xl md:text-3xl font-bold text-gray-600">{progress.total}</p>
           <p className="text-sm text-gray-500">Total</p>
         </div>
       </div>
@@ -109,7 +109,7 @@ export function BlastStep({ socket, contacts, template, onReset }: BlastStepProp
           <p className="text-red-700 font-medium mb-2">Failed Messages:</p>
           <ul className="text-sm text-red-600 space-y-1">
             {errors.map((e, i) => (
-              <li key={i}>
+              <li key={i} className="break-words">
                 {e.name} ({e.number}): {e.error}
               </li>
             ))}

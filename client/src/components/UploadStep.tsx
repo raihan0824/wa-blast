@@ -90,14 +90,14 @@ export function UploadStep({ onNext, onBack, initialContacts, initialColumns, on
   const validContacts = contacts.filter((c) => c.number.trim().length > 0);
 
   return (
-    <div className="flex flex-col items-center gap-6">
-      <p className="text-gray-500">
+    <div className="flex flex-col items-center gap-4 md:gap-6">
+      <p className="text-gray-500 text-sm md:text-base text-center">
         Upload a CSV/Excel file with contacts, or add them manually. The number column is optional — you can search WhatsApp contacts to fill in numbers.
       </p>
 
       <div
         {...getRootProps()}
-        className={`w-full max-w-lg border-2 border-dashed rounded-xl p-8 cursor-pointer transition-colors ${
+        className={`w-full max-w-lg border-2 border-dashed rounded-xl p-4 md:p-8 cursor-pointer transition-colors ${
           isDragActive
             ? 'border-green-400 bg-green-50'
             : 'border-gray-300 hover:border-gray-400 bg-white'
@@ -135,7 +135,7 @@ export function UploadStep({ onNext, onBack, initialContacts, initialColumns, on
 
       {/* Column manager */}
       <div className="w-full max-w-2xl">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
           <p className="text-sm font-medium text-gray-700">Columns</p>
           <div className="flex items-center gap-2">
             <input
@@ -144,12 +144,12 @@ export function UploadStep({ onNext, onBack, initialContacts, initialColumns, on
               onChange={(e) => setNewColumnName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && addColumn()}
               placeholder="New column..."
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-full sm:w-36 focus:outline-none focus:ring-2 focus:ring-green-500"
             />
             <button
               onClick={addColumn}
               disabled={!newColumnName.trim() || newColumnName.trim().toLowerCase() === 'number' || columns.includes(newColumnName.trim().toLowerCase())}
-              className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg font-medium hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg font-medium hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
             >
               + Add
             </button>
@@ -173,7 +173,7 @@ export function UploadStep({ onNext, onBack, initialContacts, initialColumns, on
 
       {/* Contact table */}
       <div className="w-full max-w-2xl">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
           <p className="text-sm font-medium text-gray-700">
             {validContacts.length} valid contact{validContacts.length !== 1 ? 's' : ''}
             {contacts.length !== validContacts.length && ` (${contacts.length} total)`}
@@ -214,7 +214,7 @@ export function UploadStep({ onNext, onBack, initialContacts, initialColumns, on
         </div>
 
         {contacts.length > 0 && (
-          <div className="border rounded-lg overflow-hidden">
+          <div className="border rounded-lg overflow-hidden -mx-4 sm:mx-0">
             <div className="max-h-96 overflow-auto">
               <table className="w-full text-sm text-left">
                 <thead className="bg-gray-50 sticky top-0">
@@ -271,12 +271,12 @@ export function UploadStep({ onNext, onBack, initialContacts, initialColumns, on
       </div>
 
       {contacts.length > 0 && validContacts.length < contacts.length && (
-        <div className="w-full max-w-2xl bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-700">
+        <div className="w-full max-w-2xl bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs md:text-sm text-amber-700">
           {contacts.length - validContacts.length} contact{contacts.length - validContacts.length !== 1 ? 's are' : ' is'} missing a number. Click the number cell to search WhatsApp contacts or type a number directly.
         </div>
       )}
 
-      <div className="flex gap-3">
+      <div className="flex gap-3 w-full sm:w-auto">
         <button
           onClick={onBack}
           className="px-6 py-2.5 border border-gray-300 text-gray-600 rounded-lg font-medium hover:bg-gray-50 transition-colors"
