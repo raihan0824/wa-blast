@@ -28,6 +28,7 @@ function Dashboard() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [columns, setColumns] = useState<string[]>(['name']);
   const [template, setTemplate] = useState('');
+  const [blastActive, setBlastActive] = useState(false);
 
   const handleLogout = () => {
     clearAuth();
@@ -43,6 +44,7 @@ function Dashboard() {
         onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         collapsed={sidebarCollapsed}
         socket={socket}
+        blastActive={blastActive}
       />
 
       <main className="flex-1 p-8">
@@ -79,7 +81,7 @@ function Dashboard() {
                 contacts={contacts}
                 columns={columns}
                 template={template}
-                onConfirm={() => setPage('send')}
+                onConfirm={() => { setBlastActive(true); setPage('send'); }}
                 onBack={() => setPage('template')}
               />
             )}
@@ -89,6 +91,7 @@ function Dashboard() {
                 contacts={contacts}
                 template={template}
                 onReset={() => {
+                  setBlastActive(false);
                   setContacts([]);
                   setColumns(['name']);
                   setTemplate('');
