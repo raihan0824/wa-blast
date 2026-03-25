@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 import { startBlast, type Contact } from '../lib/api';
 
@@ -20,6 +20,7 @@ export function BlastStep({ socket, contacts, template, onReset }: BlastStepProp
   const [errors, setErrors] = useState<BlastError[]>([]);
   const [isComplete, setIsComplete] = useState(false);
   const [blastError, setBlastError] = useState<string | null>(null);
+  const startedRef = useRef(false);
 
   useEffect(() => {
     const onProgress = (p: typeof progress) => setProgress(p);
@@ -33,9 +34,12 @@ export function BlastStep({ socket, contacts, template, onReset }: BlastStepProp
     socket.on('blast:error', onError);
     socket.on('blast:complete', onComplete);
 
-    startBlast(contacts, template).catch((err) => {
-      setBlastError(err instanceof Error ? err.message : 'Failed to start blast');
-    });
+    if (!startedRef.current) {
+      startedRef.current = true;
+      startBlast(contacts, template).catch((err) => {
+        setBlastError(err instanceof Error ? err.message : 'Failed to start blast');
+      });
+    }
 
     return () => {
       socket.off('blast:progress', onProgress);

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { getToken } from '../lib/auth';
+import { getToken, clearAuth } from '../lib/auth';
 
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
@@ -16,7 +16,17 @@ export function useSocket() {
     const socket = socketRef.current!;
     socket.auth = { token: getToken() };
     socket.connect();
+
+    const onConnectError = (err: Error) => {
+      if (err.message === 'Authentication required' || err.message === 'Invalid token') {
+        clearAuth();
+        window.location.reload();
+      }
+    };
+    socket.on('connect_error', onConnectError);
+
     return () => {
+      socket.off('connect_error', onConnectError);
       socket.disconnect();
     };
   }, []);

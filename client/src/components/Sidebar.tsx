@@ -19,9 +19,10 @@ interface SidebarProps {
   onCollapse: () => void;
   collapsed: boolean;
   socket: Socket;
+  blastActive?: boolean;
 }
 
-export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collapsed, socket }: SidebarProps) {
+export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collapsed, socket, blastActive }: SidebarProps) {
   const [waStatus, setWaStatus] = useState<string>('disconnected');
   const [blastOpen, setBlastOpen] = useState(true);
   const [contactsSynced, setContactsSynced] = useState(0);
@@ -80,7 +81,7 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
           </button>
 
           {BLAST_PAGES.map((p) => {
-            const disabled = p.requiresWA && !isConnected;
+            const disabled = (p.requiresWA && !isConnected) || (p.id === 'send' && !!blastActive);
             const isActive = currentPage === p.id;
             return (
               <button
@@ -92,7 +93,7 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
                   disabled ? 'text-gray-300 cursor-not-allowed' :
                   'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
                 }`}
-                title={disabled ? `${p.label} (connect first)` : p.label}
+                title={disabled ? (p.id === 'send' && blastActive ? 'Blast already sent' : `${p.label} (connect first)`) : p.label}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d={p.icon} />
@@ -195,7 +196,7 @@ export function Sidebar({ currentPage, onNavigate, onLogout, onCollapse, collaps
         {blastOpen && (
           <ul className="space-y-1 mt-1">
             {BLAST_PAGES.map((p) => {
-              const disabled = p.requiresWA && !isConnected;
+              const disabled = (p.requiresWA && !isConnected) || (p.id === 'send' && !!blastActive);
               const isActive = currentPage === p.id;
 
               return (

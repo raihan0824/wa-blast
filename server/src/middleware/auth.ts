@@ -31,7 +31,10 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
 
 export function verifySocketToken(token: string): { id: number; username: string } | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as { id: number; username: string };
+    const payload = jwt.verify(token, JWT_SECRET) as { id: number; username: string };
+    const exists = db.prepare('SELECT id FROM users WHERE id = ?').get(payload.id);
+    if (!exists) return null;
+    return payload;
   } catch {
     return null;
   }
