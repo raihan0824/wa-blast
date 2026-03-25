@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { uploadFile, type Contact } from '../lib/api';
 import { ContactAutocomplete } from './ContactAutocomplete';
@@ -6,15 +6,25 @@ import { ContactAutocomplete } from './ContactAutocomplete';
 interface UploadStepProps {
   onNext: (contacts: Contact[], columns: string[]) => void;
   onBack: () => void;
+  initialContacts?: Contact[];
+  initialColumns?: string[];
+  onChange?: (contacts: Contact[], columns: string[]) => void;
 }
 
-export function UploadStep({ onNext, onBack }: UploadStepProps) {
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [columns, setColumns] = useState<string[]>(['name']);
+export function UploadStep({ onNext, onBack, initialContacts, initialColumns, onChange }: UploadStepProps) {
+  const [contacts, setContacts] = useState<Contact[]>(initialContacts ?? []);
+  const [columns, setColumns] = useState<string[]>(initialColumns ?? ['name']);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
   const [errors, setErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [newColumnName, setNewColumnName] = useState('');
+
+  // Sync edits to parent so sidebar navigation doesn't lose data
+  useEffect(() => {
+    onChangeRef.current?.(contacts, columns);
+  }, [contacts, columns]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: {

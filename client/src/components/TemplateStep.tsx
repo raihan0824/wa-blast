@@ -7,22 +7,31 @@ interface TemplateStepProps {
   columns: string[];
   onNext: (template: string) => void;
   onBack: () => void;
+  initialTemplate?: string;
+  onTemplateChange?: (template: string) => void;
 }
 
 function renderPreview(template: string, variables: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (match, key) => variables[key] ?? match);
 }
 
-export function TemplateStep({ contacts, columns, onNext, onBack }: TemplateStepProps) {
-  const [template, setTemplate] = useState('');
+export function TemplateStep({ contacts, columns, onNext, onBack, initialTemplate, onTemplateChange }: TemplateStepProps) {
+  const [template, setTemplate] = useState(initialTemplate ?? '');
   const [savedTemplates, setSavedTemplates] = useState<SavedTemplate[]>([]);
   const [saveName, setSaveName] = useState('');
   const [showSave, setShowSave] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const onTemplateChangeRef = useRef(onTemplateChange);
+  onTemplateChangeRef.current = onTemplateChange;
 
   useEffect(() => {
     getTemplates().then(setSavedTemplates).catch(() => {});
   }, []);
+
+  // Sync template edits to parent so sidebar navigation doesn't lose data
+  useEffect(() => {
+    onTemplateChangeRef.current?.(template);
+  }, [template]);
 
   const firstContact = contacts[0] || {};
   const { number: _, ...previewVars } = firstContact;

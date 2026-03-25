@@ -57,6 +57,9 @@ function Dashboard() {
             )}
             {page === 'upload' && (
               <UploadStep
+                initialContacts={contacts}
+                initialColumns={columns}
+                onChange={(c, cols) => { setContacts(c); setColumns(cols); }}
                 onNext={(c, cols) => {
                   setContacts(c);
                   setColumns(cols);
@@ -69,6 +72,8 @@ function Dashboard() {
               <TemplateStep
                 contacts={contacts}
                 columns={columns}
+                initialTemplate={template}
+                onTemplateChange={setTemplate}
                 onNext={(t) => {
                   setTemplate(t);
                   setPage('preview');
